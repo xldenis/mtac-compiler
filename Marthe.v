@@ -201,7 +201,7 @@ Fixpoint eval (env:list (string*nat)) e :=
     | EInt n => n
     | EVar v => lookup v env 0
     | EOp o e1 e2 => eval_op o (eval env e1) (eval env e2)
-    | ESum v efin ecorps => sum (fun val => eval ((v, val) :: env) ecorps) 0 (eval env efin) 
+    | ESum v efin ecorps => sum (fun val => eval ((v, val) :: env) ecorps) 0 (eval env efin)
   end.
 
 Compute (eval nil test1). (* 385 attendu: n(n+1)(2n+1)/6 pour n=10 *)
@@ -350,13 +350,13 @@ Lemma Step_extend code code' m m' :
 Proof.
         intros H.
         unfold Step in H.
-        
+
         remember (list_get code (pc m)) as a.
         unfold Step. rewrite get_app_l.
-        + destruct a. 
+        + destruct a.
           * rewrite <- Heqa. assumption.
           * exfalso. assumption.
-        + destruct a. 
+        + destruct a.
           * symmetry in Heqa. apply get_Some in Heqa. assumption.
           * exfalso. assumption.
 Qed.
@@ -404,9 +404,9 @@ Proof.
         intros H.
         induction H.
         - constructor.
-        - apply Step_shift with (code0 := code0) in H. 
-          fold n in H. 
-          econstructor. 
+        - apply Step_shift with (code0 := code0) in H.
+          fold n in H.
+          econstructor.
           * apply H.
           * apply IHSteps.
 Qed.
@@ -424,10 +424,10 @@ Proof.
         remember ({| pc := length code1; stack := stk2; vars := vars2 |}) as m2.
         apply Steps_trans with (m2 := m2).
         - apply Steps_extend. assumption.
-        - apply Steps_shift with (code0 := code1) in H2. 
-          simpl in H2. 
-          rewrite Nat.add_0_r in H2. 
-          rewrite <- app_length in H2. 
+        - apply Steps_shift with (code0 := code1) in H2.
+          simpl in H2.
+          rewrite Nat.add_0_r in H2.
+          rewrite <- app_length in H2.
           rewrite <- Heqm2 in H2.
           assumption.
 Qed.
@@ -450,6 +450,17 @@ Qed.
 
 Hint Resolve le_n_S le_plus_r.
 
+Lemma shift_pc_app pc stk vars k n:
+        k <= pc ->
+        n = pc - k ->
+        Mach pc stk vars = shift_pc n (Mach k stk vars).
+Proof.
+        intros H1 H2.
+        simpl.
+        rewrite H2.
+        rewrite Nat.sub_add;easy.
+Qed.
+
 Lemma Steps_jump code n (f:nat->nat) stk vars b :
   length code = n ->
   (forall a acc,
@@ -463,19 +474,48 @@ Lemma Steps_jump code n (f:nat->nat) stk vars b :
           (Mach 0 (b::stk) (a::acc::vars))
           (Mach (S n) (b::stk) ((S b)::(acc + sum f a N)::vars)).
 Proof.
+	(**
         intros H H2 N a acc H6.
-        induction N.
-        - simpl. 
-          apply Steps_trans with 
-            (m2 := {| pc := n; stack := b :: stk; vars := S a :: acc + f a :: vars |}).
-          * apply Steps_extend. apply H2.
-          * assert (forall pc stk vars k, n = pc - k -> Mach pc stk vars = shift_pc n (Mach k stk vars)).
-              + clear. intros pc stk vars k H. simpl. rewrite H.
-                rewrite Nat.sub_add. easy.
-               
-                                
+	induction b.
+	- 	assert (0 = N). omega. assert (0 = a). omega.
+		rewrite <- H0. simpl.
+		apply Steps_trans with (m2 := Mach n (a :: stk) (S a :: acc + f a :: vars)).
+		+ 	rewrite <- H1 at 2. apply Steps_extend. apply H2.
+		+ 	rewrite shift_pc_app with (n := n) (k := 0); try omega.
+			rewrite shift_pc_app with (pc := S n) (n :=  n) (k := 1); try omega.
+			rewrite <- H.
+			apply Steps_shift.
+		 	apply OneStep. unfold Step. simpl. rewrite <- H1. constructor; omega.
+	-
+	*)
 
-            rewrite H0. rewrite H0 with (pc := S n). rewrite <- H. 
+
+
+
+
+
+
+	intros H H2 N a acc H6.
+	generalize dependent N.
+        induction N.
+        -       simpl.
+                intros H6.
+                rewrite H6.
+                apply Steps_trans with (m2 := Mach n (a :: stk) (S a :: acc + f a :: vars)).
+                +       apply Steps_extend.
+                        rewrite <- H6 at 1. rewrite <- H6 at 2.
+                        apply H2.
+                +       rewrite shift_pc_app with (n := n) (k := 0); try omega.
+                        rewrite shift_pc_app with (pc := S n) (n :=  n) (k := 1); try omega.
+			rewrite <- H.
+			apply Steps_shift.
+			apply OneStep.
+			unfold Step.
+			simpl.
+			constructor.
+			omega.
+	-
+
 Admitted.
 
 (** Version spécialisée du résultat précédent, avec des
