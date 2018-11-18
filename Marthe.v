@@ -474,47 +474,51 @@ Lemma Steps_jump code n (f:nat->nat) stk vars b :
           (Mach 0 (b::stk) (a::acc::vars))
           (Mach (S n) (b::stk) ((S b)::(acc + sum f a N)::vars)).
 Proof.
-	(**
-        intros H H2 N a acc H6.
-	induction b.
-	- 	assert (0 = N). omega. assert (0 = a). omega.
-		rewrite <- H0. simpl.
-		apply Steps_trans with (m2 := Mach n (a :: stk) (S a :: acc + f a :: vars)).
-		+ 	rewrite <- H1 at 2. apply Steps_extend. apply H2.
-		+ 	rewrite shift_pc_app with (n := n) (k := 0); try omega.
-			rewrite shift_pc_app with (pc := S n) (n :=  n) (k := 1); try omega.
-			rewrite <- H.
-			apply Steps_shift.
-		 	apply OneStep. unfold Step. simpl. rewrite <- H1. constructor; omega.
-	-
-	*)
+       
+        intros H H2 .
+        induction N.
+        -       admit.
+        -       intros a acc Hb.
+                apply Steps_trans with (m2 := Mach n (b :: stk) (b :: acc + sum f a N :: vars)).
+                +       admit.
+        
 
-
-
-
-
-
-
-	intros H H2 N a acc H6.
-	generalize dependent N.
+        intros b HStep a acc Hb. 
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        intros H H2 N.
         induction N.
         -       simpl.
-                intros H6.
-                rewrite H6.
+                intros a acc Hb.
+                subst b.
                 apply Steps_trans with (m2 := Mach n (a :: stk) (S a :: acc + f a :: vars)).
-                +       apply Steps_extend.
-                        rewrite <- H6 at 1. rewrite <- H6 at 2.
-                        apply H2.
-                +       rewrite shift_pc_app with (n := n) (k := 0); try omega.
-                        rewrite shift_pc_app with (pc := S n) (n :=  n) (k := 1); try omega.
-			rewrite <- H.
-			apply Steps_shift.
-			apply OneStep.
-			unfold Step.
-			simpl.
-			constructor.
-			omega.
-	-
+                        +       apply Steps_extend. apply H2.
+                        +       rewrite shift_pc_app with (n := n) (k := 0); try omega.
+                                rewrite shift_pc_app with (pc := S n) (n :=  n) (k := 1); try omega.
+                                rewrite <- H.
+                                apply Steps_shift.
+                                apply OneStep.
+                                unfold Step. simpl. constructor.
+                                omega.
+        -       intros a acc H3. 
+                apply Steps_trans with (m2 := Mach (S n) (b :: stk) (S b :: acc + sum f a N :: vars)).
+        
+        intros H H2 N.
+        generalize b.
+        induction N.
+        - admit.
+        -       intros b0 a acc Hb0.
+                apply Step_trans with (m2 : Mach (S n) (pred b
 
 Admitted.
 

@@ -8,4 +8,11 @@
 - https://github.com/uwplse/StructTact/
 - https://github.com/Ptival/HaysTac/
 
+# other papers
 
+- iris proof mode papers
+- finger trees matthieu sozeau 
+- equations / program matthieu sozeau 
+- andrew apple
+- compcert
+-
