@@ -3,11 +3,13 @@ Import T.
 
 Require Import Lists.List.
 Import Lists.List.ListNotations.
+Import Mtac2.lib.List.ListNotations.
 
 Require Import Eqdep List Omega.
 
-
-Ltac inject H := injection H; clear H; intros; try subst.
+Set Universe Polymorphism.
+Set Polymorphic Inductive Cumulativity.
+Unset Universe Minimization ToSet.
 
 Definition minject {A} (x : A) : tactic :=
   A <- goal_type;
@@ -15,27 +17,12 @@ Definition minject {A} (x : A) : tactic :=
   intros_all;;
   try subst.
 
-Ltac appHyps f :=
-  match goal with
-    | [ H : _ |- _ ] => f H
-  end.
-
 Definition mappHyps {A B} (f : A -> gtactic B) : gtactic B :=
   match_goal with
   | [[ H : A |- B ]] => f H
   end.
 
-
 (** Succeed iff [x] is in the list [ls], represented with left-associated nested tuples. *)
-Ltac inList x ls :=
-  match ls with
-    | x => idtac
-    | (_, x) => idtac
-    | (?LS, _) => inList x LS
-  end.
-
-Import Mtac2.lib.List.ListNotations.
-
 Fixpoint minList {A} (x : A) (ls : list A) : tactic :=
         match ls with
         | nil => fun _ => M.failwith "omg"
@@ -47,12 +34,6 @@ end%list.
 
 
 (** Try calling tactic function [f] on every element of tupled list [ls], keeping the first call not to fail. *)
-Ltac app f ls :=
-  match ls with
-    | (?LS, ?X) => f X || app f LS || fail 1
-    | _ => f ls
-  end.
-
 Fixpoint mapp {A} (f : A -> tactic) (ls : list A) : tactic :=
   match ls with
   | nil => fun _ => M.failwith "empty list"
@@ -65,75 +46,11 @@ Fixpoint mapp {A} (f : A -> tactic) (ls : list A) : tactic :=
   end%list.
 
 (** Run [f] on every element of [ls], not just the first that doesn't fail. *)
-Ltac all f ls :=
-  match ls with
-    | (?LS, ?X) => f X; all f LS
-    | (_, _) => fail 1
-    | _ => f ls
-  end.
-
 Fixpoint mall {A} (f : A -> tactic) (ls : list A) : tactic :=
   match ls with
   | nil => fun _ => M.failwith "empty list"
   | x :: ls' => f x ;; mall f ls'
   end%list.
-
-(** Workhorse tactic to simplify hypotheses for a variety of proofs.
-   * Argument [invOne] is a tuple-list of predicates for which we always do inversion automatically. *)
-Ltac simplHyp invOne :=
-  (** Helper function to do inversion on certain hypotheses, where [H] is the hypothesis and [F] its head symbol *)
-  let invert H F :=
-    (** We only proceed for those predicates in [invOne]. *)
-    inList F invOne;
-    (** This case covers an inversion that succeeds immediately, meaning no constructors of [F] applied. *)
-      (inversion H; fail)
-    (** Otherwise, we only proceed if inversion eliminates all but one constructor case. *)
-      || (inversion H; [idtac]; clear H; try subst) in
-
-  match goal with
-    (** Eliminate all existential hypotheses. *)
-    | [ H : ex _ |- _ ] => destruct H
-
-    (** Find opportunities to take advantage of injectivity of data constructors, for several different arities. *)
-    | [ H : ?F ?X = ?F ?Y |- ?G ] =>
-      (** This first branch of the [||] fails the whole attempt iff the arguments of the constructor applications are already easy to prove equal. *)
-      (assert (X = Y); [ assumption | fail 1 ])
-      (** If we pass that filter, then we use injection on [H] and do some simplification as in [inject].
-         * The odd-looking check of the goal form is to avoid cases where [injection] gives a more complex result because of dependent typing, which we aren't equipped to handle here. *)
-      || (injection H;
-        match goal with
-          | [ |- X = Y -> G ] =>
-            try clear H; intros; try subst
-        end)
-    | [ H : ?F ?X ?U = ?F ?Y ?V |- ?G ] =>
-      (assert (X = Y); [ assumption
-        | assert (U = V); [ assumption | fail 1 ] ])
-      || (injection H;
-        match goal with
-          | [ |- U = V -> X = Y -> G ] =>
-            try clear H; intros; try subst
-        end)
-
-    (** Consider some different arities of a predicate [F] in a hypothesis that we might want to invert. *)
-    | [ H : ?F _ |- _ ] => invert H F
-    | [ H : ?F _ _ |- _ ] => invert H F
-    | [ H : ?F _ _ _ |- _ ] => invert H F
-    | [ H : ?F _ _ _ _ |- _ ] => invert H F
-    | [ H : ?F _ _ _ _ _ |- _ ] => invert H F
-
-    (** Use an (axiom-dependent!) inversion principle for dependent pairs, from the standard library. *)
-    | [ H : existT _ ?T _ = existT _ ?T _ |- _ ] => generalize (inj_pair2 _ _ _ _ _ H); clear H
-
-    (** If we're not ready to use that principle yet, try the standard inversion, which often enables the previous rule. *)
-    | [ H : existT _ _ _ = existT _ _ _ |- _ ] => inversion H; clear H
-
-    (** Similar logic to the cases for constructor injectivity above, but specialized to [Some], since the above cases won't deal with polymorphic constructors. *)
-    | [ H : Some _ = Some _ |- _ ] => injection H; clear H
-  end.
-
-(** Devious marker predicate to use for encoding state within proof goals *)
-Definition done (T : Type) (x : T) := True.
-
 
 (** Workhorse tactic to simplify hypotheses for a variety of proofs.
    * Argument [invOne] is a tuple-list of predicates for which we always do inversion automatically. *)
@@ -203,69 +120,38 @@ Ltac rewriteHyp :=
   match goal with
     | [ H : _ |- _ ] => rewrite H by solve [ auto ]
   end.
+Definition mrewriteHyp : tactic := T.ltac (qualify "rewriteHyp") [m:].
 
-(*Definition mrewriteHyp : tactic :=
-  match_goal with
-    | [[ H: _ |- _ ]] => rewrite H by solve [ auto ]
-  end.
-*)
+(** Combine [autorewrite] with automatic hypothesis rewrites. *)
+Ltac rewriterP := repeat (rewriteHyp; autorewrite with core in *).
+Definition mrewriterP : tactic := T.ltac (qualify "rewriteP") [m:].
+
+Ltac rewriter := autorewrite with core in *; rewriterP.
+Definition mrewriter : tactic := T.ltac (qualify "rewriter") [m:].
+
+(** This one is just so darned useful, let's add it as a hint here. *)
+Hint Rewrite app_ass.
+
+(** Devious marker predicate to use for encoding state within proof goals *)
+Definition done (T : Type) (x : T) := True.
+
+Set Implicit Arguments.
+Set Printing All.
 
 (** Try a new instantiation of a universally quantified fact, proved by [e].
    * [trace] is an accumulator recording which instantiations we choose. *)
-Ltac inster e trace :=
-  (** Does [e] have any quantifiers left? *)
-  match type of e with
-    | forall x : _, _ =>
-      (** Yes, so let's pick the first context variable of the right type. *)
-      match goal with
-        | [ H : _ |- _ ] =>
-          inster (e H) (trace, H)
-        | _ => fail 2
-      end
-    | _ =>
-      (** No more quantifiers, so now we check if the trace we computed was already used. *)
-      match trace with
-        | (_, _) =>
-          (** We only reach this case if the trace is nonempty, ensuring that [inster] fails if no progress can be made. *)
-          match goal with
-            | [ H : done (trace, _) |- _ ] =>
-              (** Uh oh, found a record of this trace in the context!  Abort to backtrack to try another trace. *)
-              fail 1
-            | _ =>
-              (** What is the type of the proof [e] now? *)
-              let T := type of e in
-                match type of T with
-                  | Prop =>
-                    (** [e] should be thought of as a proof, so let's add it to the context, and also add a new marker hypothesis recording our choice of trace. *)
-                    generalize e; intro;
-                      assert (done (trace, tt)) by constructor
-                  | _ =>
-                    (** [e] is something beside a proof.  Better make sure no element of our current trace was generated by a previous call to [inster], or we might get stuck in an infinite loop!  (We store previous [inster] terms in second positions of tuples used as arguments to [done] in hypotheses.  Proofs instantiated by [inster] merely use [tt] in such positions.) *)
-                    all ltac:(fun X =>
-                      match goal with
-                        | [ H : done (_, X) |- _ ] => fail 1
-                        | _ => idtac
-                      end) trace;
-                    (** Pick a new name for our new instantiation. *)
-                    let i := fresh "i" in (pose (i := e);
-                      assert (done (trace, i)) by constructor)
-                end
-          end
-      end
-  end.
-
 Fixpoint minster (e : dyn) (trace : mlist dyn) : tactic :=
   mmatch (M.type_of e) with
-    | [!Type] forall _ : X, P  =n>
-        match_goal with
-        (**  how do we 'refine' the type of e? *)
+    | [!Type] forall _ : X, P  =n> idtac
+(*        match_goal with
+        *  how do we 'refine' the type of e?
         | [[ H : _ |- _ ]] => minster (e H) (H :m: trace)
-        end
+        end*)
     | _ =>
         match trace with
-        | _ :: _  =>
+        | _ :m: _  =>
             match_goal with
-            | [[H : done (trace, _) |- _ ]] => raise GoalNotExistential (** replace w better exception *)
+            | [[? B G | H : done (m: trace, B) |- G ]] => raise GoalNotExistential (** replace w better exception *)
             | _ =>
               let T := M.type_of e in
                 mmatch (M.type_of T) with
@@ -280,6 +166,7 @@ Fixpoint minster (e : dyn) (trace : mlist dyn) : tactic :=
                     (*let i := fresh "i" in (pose (i := e) &> assert (done (trace, i)) by constructor)*)
                 end
             end
+        | [m:] => raise GoalNotExistential
         end%list
   end.
 
