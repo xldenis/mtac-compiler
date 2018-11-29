@@ -1,5 +1,5 @@
 (* Copyright (c) 2008-2012, Adam Chlipala
- * 
+ *
  * This work is licensed under a
  * Creative Commons Attribution-Noncommercial-No Derivative Works 3.0
  * Unported License.
@@ -11,9 +11,25 @@ Require Import Eqdep List Omega.
 
 Set Implicit Arguments.
 
+Require Import Mtac2.Mtac2.
+Import T.
+
+Require Import Lists.List.
+Import Lists.List.ListNotations.
+Import Mtac2.lib.List.ListNotations.
+
+Require Import Eqdep List Omega.
+
+Set Universe Polymorphism.
+Set Polymorphic Inductive Cumulativity.
+Unset Universe Minimization ToSet.
 
 (** A version of [injection] that does some standard simplifications afterward: clear the hypothesis in question, bring the new facts above the double line, and attempt substitution for known variables. *)
-Ltac inject H := injection H; clear H; intros; try subst.
+Definition inject {A} (x : A) : tactic :=
+  A <- goal_type;
+  (injection A) >>= clear;;
+  intros_all;;
+  try subst.
 
 (** Try calling tactic function [f] on all hypotheses, keeping the first application that doesn't fail. *)
 Ltac appHyps f :=
@@ -166,7 +182,7 @@ Ltac un_done :=
 Require Import JMeq.
 
 (** A more parameterized version of the famous [crush].  Extra arguments are:
-   * - A tuple-list of lemmas we try [inster]-ing 
+   * - A tuple-list of lemmas we try [inster]-ing
    * - A tuple-list of predicates we try inversion for *)
 Ltac crush' lemmas invOne :=
   (** A useful combination of standard automation *)
