@@ -450,17 +450,6 @@ Qed.
 
 Hint Resolve le_n_S le_plus_r.
 
-Lemma shift_pc_app pc stk vars k n:
-        k <= pc ->
-        n = pc - k ->
-        Mach pc stk vars = shift_pc n (Mach k stk vars).
-Proof.
-        intros H1 H2.
-        simpl.
-        rewrite H2.
-        rewrite Nat.sub_add;easy.
-Qed.
-
 Lemma Steps_jump code n (f:nat->nat) stk vars b :
   length code = n ->
   (forall a acc,
@@ -474,24 +463,14 @@ Lemma Steps_jump code n (f:nat->nat) stk vars b :
           (Mach 0 (b::stk) (a::acc::vars))
           (Mach (S n) (b::stk) ((S b)::(acc + sum f a N)::vars)).
 Proof.
-       
-        intros H H2 .
+
+        intros H H2.
+        intros N.
         induction N.
         -       admit.
-        -       intros a acc Hb.
-                apply Steps_trans with (m2 := Mach n (b :: stk) (b :: acc + sum f a N :: vars)).
-                +       admit.
-        
+        -
 
-        intros b HStep a acc Hb. 
-        
-        
-        
-        
-        
-        
-        
-        
+
         
         
         
