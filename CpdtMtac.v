@@ -46,11 +46,11 @@ Fixpoint mapp {A} (f : A -> tactic) (ls : list A) : tactic :=
   end%list.
 
 (** Run [f] on every element of [ls], not just the first that doesn't fail. *)
-Fixpoint mall {A} (f : A -> tactic) (ls : list A) : tactic :=
+Fixpoint mall {A} (f : A -> tactic) (ls : mlist A) : tactic :=
   match ls with
-  | nil => fun _ => M.failwith "empty list"
-  | x :: ls' => f x ;; mall f ls'
-  end%list.
+  | [m:] => fun _ => M.failwith "empty list"
+  | x :m: ls' => f x ;; mall f ls'
+  end.
 
 (** Workhorse tactic to simplify hypotheses for a variety of proofs.
    * Argument [invOne] is a tuple-list of predicates for which we always do inversion automatically. *)
@@ -133,7 +133,7 @@ Definition mrewriter : tactic := T.ltac (qualify "rewriter") [m:].
 Hint Rewrite app_ass.
 
 (** Devious marker predicate to use for encoding state within proof goals *)
-Definition done (T : Type) (x : T) := True.
+Definition done {A} (x : A) := True.
 
 Set Implicit Arguments.
 Set Printing All.
@@ -141,12 +141,15 @@ Set Printing All.
 (** Try a new instantiation of a universally quantified fact, proved by [e].
    * [trace] is an accumulator recording which instantiations we choose. *)
 Fixpoint minster (e : dyn) (trace : mlist dyn) : tactic :=
+
+  mmatch e with
+  | [? (X : Type)  (G : X -> Type) (F : _ )]  @Dyn (forall x : X, G x) F  => match_goal with
+        | [[H : X |- _ ]] => minster (Dyn (F H)) (Dyn H :m: trace)
+        end
+  | _ =>
   mmatch (M.type_of e) with
     | [!Type] forall _ : X, P  =n> idtac
-(*        match_goal with
-        *  how do we 'refine' the type of e?
-        | [[ H : _ |- _ ]] => minster (e H) (H :m: trace)
-        end*)
+
     | _ =>
         match trace with
         | _ :m: _  =>
@@ -157,17 +160,18 @@ Fixpoint minster (e : dyn) (trace : mlist dyn) : tactic :=
                 mmatch (M.type_of T) with
                   | Prop => idtac  (*generalize e &> intro H &> assert (done (m: trace, tt)) by constructor*)
                   | _ =>
-                    all (fun X =>
+                    mall (fun (X : dyn) =>
                       match_goal with
-                      | [[ H : done (_, X) |- _ ]] => raise GoalNotExistential
-                      | _ => idtac
+                      | [[? A G | H : done (A, X) |- G ]] => raise GoalNotExistential
+                      (*| _ => idtac*)
                       end) trace ;;
                       idtac
                     (*let i := fresh "i" in (pose (i := e) &> assert (done (trace, i)) by constructor)*)
                 end
             end
         | [m:] => raise GoalNotExistential
-        end%list
+       end%list
+    end
   end.
 
 
