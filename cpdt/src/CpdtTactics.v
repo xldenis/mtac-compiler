@@ -38,13 +38,6 @@ Definition appHyps {A B} (f : A -> gtactic B) : gtactic B :=
   end.
 
 (** Succeed iff [x] is in the list [ls], represented with left-associated nested tuples. *)
-Ltac linList x ls :=
-  lazymatch ls with
-    | x => idtac
-    | (_, x) => idtac
-    | (?LS, _) => linList x LS
-  end.
-
 Fixpoint inList {A} (x : A) (ls : mlist A) : tactic :=
     match ls with (** check that mtac unification is the same as ltac here... *)
     | [m:]    => fun _ => M.failwith "omg"
@@ -63,10 +56,15 @@ Ltac tuple_to_list ls :=
 Check ltac:(let o := tuple_to_list (1,2,3,4) in pose o).
 
 (** Try calling tactic function [f] on every element of tupled list [ls], keeping the first call not to fail. *)
-Ltac app f ls :=
+Fixpoint app {A} (f : A -> tactic) (ls : mlist A) : tactic :=
   match ls with
-    | (?LS, ?X) => f X || app f LS || fail 1
-    | _ => f ls
+  | [m:] => fun _ => M.failwith "empty list"
+  | x :m: ls' =>
+    mtry
+      f x
+    with
+    | _ => app f ls'
+    end
   end.
 
 (** Run [f] on every element of [ls], not just the first that doesn't fail. *)
@@ -82,81 +80,10 @@ Ltac all f ls :=
 Ltac simplHyp invOne :=
   (** Helper function to do inversion on certain hypotheses, where [H] is the hypothesis and [F] its head symbol *)
   let invert H F :=
-    idtac "start-simpl";
-    idtac invOne;
-    idtac F;
-    match goal with
-    | |- ?g => idtac g
-    end;
-    (** We only proceed for those predicates in [invOne]. *)
-    linList F invOne;
-    idtac "in-list";
-    (*mrun (inList (Dyn F) ltac:(tuple_to_list invOne));*)
-    (** This case covers an inversion that succeeds immediately, meaning no constructors of [F] applied. *)
-      (inversion H; fail)
-    (** Otherwise, we only proceed if inversion eliminates all but one constructor case. *)
-      || (inversion H; [idtac]; clear H; try subst) in
-
-  match goal with
-    (** Eliminate all existential hypotheses. *)
-    | [ H : ex _ |- _ ] => destruct H
-
-    (** Find opportunities to take advantage of injectivity of data constructors, for several different arities. *)
-    | [ H : ?F ?X = ?F ?Y |- ?G ] =>
-      (** This first branch of the [||] fails the whole attempt iff the arguments of the constructor applications are already easy to prove equal. *)
-      (assert (X = Y); [ assumption | fail 1 ])
-      (** If we pass that filter, then we use injection on [H] and do some simplification as in [inject].
-         * The odd-looking check of the goal form is to avoid cases where [injection] gives a more complex result because of dependent typing, which we aren't equipped to handle here. *)
-      || (injection H;
-        match goal with
-          | [ |- X = Y -> G ] =>
-            try clear H; intros; try subst
-        end)
-    | [ H : ?F ?X ?U = ?F ?Y ?V |- ?G ] =>
-      (assert (X = Y); [ assumption
-        | assert (U = V); [ assumption | fail 1 ] ])
-      || (injection H;
-        match goal with
-          | [ |- U = V -> X = Y -> G ] =>
-            try clear H; intros; try subst
-        end)
-
-    (** Consider some different arities of a predicate [F] in a hypothesis that we might want to invert. *)
-    | [ H : ?F _ |- _ ] => invert H F
-    | [ H : ?F _ _ |- _ ] => invert H F
-    | [ H : ?F _ _ _ |- _ ] => invert H F
-    | [ H : ?F _ _ _ _ |- _ ] => invert H F
-    | [ H : ?F _ _ _ _ _ |- _ ] => invert H F
-
-    (** Use an (axiom-dependent!) inversion principle for dependent pairs, from the standard library. *)
-    | [ H : existT _ ?T _ = existT _ ?T _ |- _ ] => generalize (inj_pair2 _ _ _ _ _ H); clear H
-
-    (** If we're not ready to use that principle yet, try the standard inversion, which often enables the previous rule. *)
-    | [ H : existT _ _ _ = existT _ _ _ |- _ ] => inversion H; clear H
-
-    (** Similar logic to the cases for constructor injectivity above, but specialized to [Some], since the above cases won't deal with polymorphic constructors. *)
-    | [ H : Some _ = Some _ |- _ ] => injection H; clear H
-  end.
-
-(** Workhorse tactic to simplify hypotheses for a variety of proofs.
-   * Argument [invOne] is a tuple-list of predicates for which we always do inversion automatically. *)
-Ltac simplHyp' invOne :=
-  (** Helper function to do inversion on certain hypotheses, where [H] is the hypothesis and [F] its head symbol *)
-  let invert H F :=
-    idtac "start-simpl";
-    let omg := tuple_to_list invOne in
-    idtac omg;
-    idtac F;
-    match goal with
-    | |- ?g => idtac g
-    end;
     (** We only proceed for those predicates in [invOne]. *)
     (*linList F invOne;*)
-    let omg' := mrun (inList (Dyn F) ltac:(tuple_to_list invOne)) in
-    idtac "help me" omg';
     let list := tuple_to_list invOne in
     mrun (inList (Dyn F) list);
-    idtac "in-list";
 
     (** This case covers an inversion that succeeds immediately, meaning no constructors of [F] applied. *)
       (inversion H; fail)
@@ -276,69 +203,34 @@ Require Import JMeq.
    * - A tuple-list of lemmas we try [inster]-ing
    * - A tuple-list of predicates we try inversion for *)
 Ltac crush' lemmas invOne :=
-  idtac lemmas;
   (** A useful combination of standard automation *)
-  let sintuition := idtac "start-int"; simpl in *; intuition; try subst;
-    repeat (simplHyp invOne; intuition; try subst); try congruence; idtac "end-int" in
+  let sintuition := simpl in *; intuition; try subst;
+    repeat (simplHyp invOne; intuition; try subst); try congruence in
 
   (** A fancier version of [rewriter] from above, which uses [crush'] to discharge side conditions *)
-  let rewriter := idtac "start-rew"; autorewrite with core in *;
+  let rewriter :=  autorewrite with core in *;
     repeat (match goal with
               | [ H : ?P |- _ ] =>
                 match P with
                   | context[JMeq] => fail 1 (** JMeq is too fancy to deal with here. *)
                   | _ => rewrite H by crush' lemmas invOne
                 end
-            end; autorewrite with core in *); idtac "end-rew" in
-
-  (** Now the main sequence of heuristics: *)
-    (sintuition; idtac "omg"; rewriter;
-      match lemmas with
-        | false => idtac (** No lemmas?  Nothing to do here *)
-        | _ =>
-          (** Try a loop of instantiating lemmas... *)
-          repeat ((app ltac:(fun L => inster L L) lemmas
-          (** ...or instantiating hypotheses... *)
-            || mrun (appHyps ltac:(fun L => inster L L)));
-          (** ...and then simplifying hypotheses. *)
-          repeat (simplHyp invOne; intuition)); un_done
-      end;
-      idtac "omg-2"; sintuition; idtac "omg-3"; rewriter; idtac "omg-4"; sintuition;
-      (** End with a last attempt to prove an arithmetic fact with [omega], or prove any sort of fact in a context that is contradictory by reasoning that [omega] can do. *)
-      try omega; try (elimtype False; omega)).
-
-
-(** A more parameterized version of the famous [crush].  Extra arguments are:
-   * - A tuple-list of lemmas we try [inster]-ing
-   * - A tuple-list of predicates we try inversion for *)
-Ltac crush'' lemmas invOne :=
-  (** A useful combination of standard automation *)
-  let sintuition := idtac "start-int"; simpl in *; intuition; try subst;
-    repeat (simplHyp' invOne; intuition; try subst); try congruence; idtac "end-int" in
-
-  (** A fancier version of [rewriter] from above, which uses [crush'] to discharge side conditions *)
-  let rewriter := idtac "start-rew"; autorewrite with core in *;
-    repeat (match goal with
-              | [ H : ?P |- _ ] =>
-                match P with
-                  | context[JMeq] => fail 1 (** JMeq is too fancy to deal with here. *)
-                  | _ => rewrite H by crush'' lemmas invOne
-                end
-            end; autorewrite with core in *); idtac "end-rew" in
+            end; autorewrite with core in *) in
 
   (** Now the main sequence of heuristics: *)
     (sintuition; rewriter;
       match lemmas with
         | false => idtac (** No lemmas?  Nothing to do here *)
         | _ =>
+          let lemma_list := tuple_to_list lemmas in
           (** Try a loop of instantiating lemmas... *)
-          repeat ((app ltac:(fun L => inster L L) lemmas
+          repeat ( (mrun (app ltac:(fun L => inster L L) lemma_list)
           (** ...or instantiating hypotheses... *)
             || mrun (appHyps ltac:(fun L => inster L L)));
           (** ...and then simplifying hypotheses. *)
-          repeat (simplHyp' invOne; intuition)); un_done
+          repeat (simplHyp invOne; intuition)); un_done
       end;
-      sintuition; idtac "omg-2"; rewriter; idtac "omg-3"; sintuition;
+      sintuition; rewriter; sintuition;
       (** End with a last attempt to prove an arithmetic fact with [omega], or prove any sort of fact in a context that is contradictory by reasoning that [omega] can do. *)
       try omega; try (elimtype False; omega)).
 
