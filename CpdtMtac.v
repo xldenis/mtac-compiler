@@ -23,14 +23,53 @@ Definition mappHyps {A B} (f : A -> gtactic B) : gtactic B :=
   end.
 
 (** Succeed iff [x] is in the list [ls], represented with left-associated nested tuples. *)
-Fixpoint minList {A} (x : A) (ls : list A) : tactic :=
-        match ls with
-        | nil => fun _ => M.failwith "omg"
-        | y :: ls' => mmatch y with
-                | x => idtac
-                | _ => minList x ls'
-        end
-end%list.
+Fixpoint minList {A} (x : A) (ls : mlist A) : tactic :=
+  match ls with
+  | [m:] => fun _ => M.failwith "omg"
+  | y :m: ls' => mmatch y with
+          | x => idtac
+          | _ => minList x ls'
+  end
+end.
+
+Inductive exp : Set :=
+| Nat : nat -> exp
+| Plus : exp -> exp -> exp
+| Bool : bool -> exp
+| And : exp -> exp -> exp.
+
+(** We define a simple language of types and its typing rules, in the style introduced in Chapter 4. *)
+
+Inductive type : Set := TNat | TBool.
+
+Inductive hasType : exp -> type -> Prop :=
+| HtNat : forall n,
+  hasType (Nat n) TNat
+| HtPlus : forall e1 e2,
+  hasType e1 TNat
+  -> hasType e2 TNat
+  -> hasType (Plus e1 e2) TNat
+| HtBool : forall b,
+  hasType (Bool b) TBool
+| HtAnd : forall e1 e2,
+  hasType e1 TBool
+  -> hasType e2 TBool
+  -> hasType (And e1 e2) TBool.
+
+Ltac tuple_to_list ls :=
+  match ls with
+  | (?LS, ?X) => let r := tuple_to_list LS in constr:(Dyn X :m: r)
+  | ?X => constr:([m: Dyn X])
+  end.
+
+(*Ltac fixxx F invOne := mrun (minList F ltac:(let o := constr:([m: Dyn true]) in exact o)) .*)
+Ltac fixxx F invOne := let o := tuple_to_list invOne in mrun (minList F o) .
+
+Goal True.
+Proof.
+
+  fixxx (Dyn hasType) (hasType).
+Qed.
 
 
 (** Try calling tactic function [f] on every element of tupled list [ls], keeping the first call not to fail. *)

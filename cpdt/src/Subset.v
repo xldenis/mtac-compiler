@@ -1,5 +1,5 @@
 (* Copyright (c) 2008-2012, 2015, Adam Chlipala
- * 
+ *
  * This work is licensed under a
  * Creative Commons Attribution-Noncommercial-No Derivative Works 3.0
  * Unported License.
@@ -39,7 +39,7 @@ pred = fun n : nat => match n with
                       | S u => u
                       end
      : nat -> nat
- 
+
 ]]
 
 We can use a new command, %\index{Vernacular commands!Extraction}\index{program extraction}\index{extraction|see{program extraction}}%[Extraction], to produce an %\index{OCaml}%OCaml version of this function. *)
@@ -102,7 +102,7 @@ Definition pred_strong1' (n : nat) (pf : n > 0) : nat :=
 Error: In environment
 n : nat
 pf : n > 0
-The term "pf" has type "n > 0" while it is expected to have type 
+The term "pf" has type "n > 0" while it is expected to have type
 "0 > 0"
 >>
 
@@ -269,7 +269,7 @@ Definition pred_strong4 : forall n : nat, n > 0 -> {m : nat | n = S m}.
 
 [[
 2 subgoals
-  
+
   n : nat
   _ : 0 > 0
   ============================
@@ -295,7 +295,7 @@ Defined.
 
 Print pred_strong4.
 (** %\vspace{-.15in}% [[
-pred_strong4 = 
+pred_strong4 =
 fun n : nat =>
 match n as n0 return (n0 > 0 -> {m : nat | n0 = S m}) with
 | 0 =>
@@ -335,7 +335,7 @@ Print pred_strong4'.
 (* end thide *)
 
 (** %\vspace{-.15in}% [[
-pred_strong4' = 
+pred_strong4' =
 fun n : nat =>
 match n as n0 return (n0 > 0 -> {m : nat | n0 = S m}) with
 | 0 =>
