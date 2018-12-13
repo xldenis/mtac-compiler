@@ -80,19 +80,18 @@ Ltac simplHyp invOne :=
   (** Helper function to do inversion on certain hypotheses, where [H] is the hypothesis and [F] its head symbol *)
   let invert H F :=
     (** We only proceed for those predicates in [invOne]. *)
-    (*linList F invOne;*)
-    let list := tuple_to_list invOne in
-    mrun (inList (Dyn F) list);
-
+    (* for some reason these two let statements won't commute... *)
+    let list := tuple_to_list invOne in mrun (
+      inList (Dyn F) list &>
     (** This case covers an inversion that succeeds immediately, meaning no constructors of [F] applied. *)
-      (inversion H; fail)
+    (inversion H &> raise GoalNotExistential)
     (** Otherwise, we only proceed if inversion eliminates all but one constructor case. *)
-      || (inversion H; [idtac]; clear H; try subst) in
-
-  match goal with
+    || inversion H &> [m: idtac] &> clear H &> try subst) in
+  mrun (match_goal with
     (** Eliminate all existential hypotheses. *)
-    | [ H : ex _ |- _ ] => destruct H
+    | [[? (A : Type) (C : A -> Prop) D | H : (exists x : A, C x) |- (D : Prop) ]] => destruct H &> simpl &> intros &> clear H
 
+  end) || match goal with
     (** Find opportunities to take advantage of injectivity of data constructors, for several different arities. *)
     | [ H : ?F ?X = ?F ?Y |- ?G ] =>
       (** This first branch of the [||] fails the whole attempt iff the arguments of the constructor applications are already easy to prove equal. *)
@@ -216,9 +215,10 @@ Ltac crush' lemmas invOne :=
                   | _ => rewrite H by crush' lemmas invOne
                 end
             end; autorewrite with core in *) in
-
   (** Now the main sequence of heuristics: *)
-    (sintuition; rewriter;
+    (
+      sintuition;
+      rewriter;
       match lemmas with
         | false => idtac (** No lemmas?  Nothing to do here *)
         | _ =>
@@ -230,9 +230,13 @@ Ltac crush' lemmas invOne :=
           (** ...and then simplifying hypotheses. *)
           repeat (simplHyp invOne; intuition)); un_done
       end;
-      sintuition; rewriter; sintuition;
+      sintuition;
+      rewriter;
+      sintuition;
+
       (** End with a last attempt to prove an arithmetic fact with [omega], or prove any sort of fact in a context that is contradictory by reasoning that [omega] can do. *)
       try omega; try (elimtype False; omega)).
+
 
 (** [crush] instantiates [crush'] with the simplest possible parameters. *)
 Ltac crush := crush' false fail.

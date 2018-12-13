@@ -62,15 +62,6 @@ Ltac tuple_to_list ls :=
   | ?X => constr:([m: Dyn X])
   end.
 
-(*Ltac fixxx F invOne := mrun (minList F ltac:(let o := constr:([m: Dyn true]) in exact o)) .*)
-Ltac fixxx F invOne := let o := tuple_to_list invOne in mrun (minList F o) .
-
-Goal True.
-Proof.
-
-  fixxx (Dyn hasType) (hasType).
-Qed.
-
 
 (** Try calling tactic function [f] on every element of tupled list [ls], keeping the first call not to fail. *)
 Fixpoint mapp {A} (f : A -> tactic) (ls : list A) : tactic :=
@@ -93,7 +84,7 @@ Fixpoint mall {A} (f : A -> tactic) (ls : mlist A) : tactic :=
 
 (** Workhorse tactic to simplify hypotheses for a variety of proofs.
    * Argument [invOne] is a tuple-list of predicates for which we always do inversion automatically. *)
-Definition msimplHyp (invOne : list dyn) : tactic :=
+Definition msimplHyp (invOne : mlist dyn) : tactic :=
   (** Helper function to do inversion on certain hypotheses, where [H] is the hypothesis and [F] its head symbol *)
   let invert {B} (H : B) (F : dyn) : tactic :=
     (** We only proceed for those predicates in [invOne]. *)
