@@ -790,11 +790,12 @@ Lemma even_contra' : forall n', even n' -> forall n, n' = S (n + n) -> False.
 
   SearchRewrite (_ + S _).
 (** %\vspace{-.15in}%[[
+
   plus_n_Sm : forall n m : nat, S (n + m) = n + S m
      ]]
      *)
 
-  rewrite <- plus_n_Sm in H0.
+  rewrite <- plus_n_Sm in ann.
 
   (** The induction hypothesis lets us complete the proof, if we use a variant of [apply] that has a %\index{tactics!with}%[with] clause to give instantiations of quantified variables. *)
 

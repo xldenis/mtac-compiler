@@ -24,10 +24,15 @@ Set Universe Polymorphism.
 Set Polymorphic Inductive Cumulativity.
 Unset Universe Minimization ToSet.
 
+
+Ltac Minjection v := injection v.
+Definition minjection {A} (x: A) : tactic :=
+  T.ltac ("Minjection") [m:Dyn x].
+
 (** A version of [injection] that does some standard simplifications afterward: clear the hypothesis in question, bring the new facts above the double line, and attempt substitution for known variables. *)
 Definition inject {A} (x : A) : tactic :=
   A <- goal_type;
-  (injection A) >>= clear;;
+  (minjection A) >>= clear;;
   intros_all;;
   try subst.
 
@@ -83,6 +88,61 @@ Ltac simplHyp invOne :=
     (* for some reason these two let statements won't commute... *)
     let list := tuple_to_list invOne in mrun (
       inList (Dyn F) list &>
+
+    (** This case covers an inversion that succeeds immediately, meaning no constructors of [F] applied. *)
+    (inversion H &> raise GoalNotExistential)
+    (** Otherwise, we only proceed if inversion eliminates all but one constructor case. *)
+    || inversion H &> [m: idtac] &> clear H &> try subst) in
+  mrun (match_goal with
+    (** Eliminate all existential hypotheses. *)
+    | [[? (A : Type) (C : A -> Prop) D | H : (exists x : A, C x) |- (D : Prop) ]] => destruct H &> simpl &> intros &> clear H
+    (** Find opportunities to take advantage of injectivity of data constructors, for several different arities. *)
+    | [[? (A : Type) (B : Type) (F : A -> B) (X : A) (Y : A) (G : Prop) | (H : F X = F Y) |- G]] =>
+      (** This first branch of the [||] fails the whole attempt iff the arguments of the constructor applications are already easy to prove equal. *)
+      (assert (_ : X = Y) &> [m: assumption | raise GoalNotExistential ])
+      (** If we pass that filter, then we use injection on [H] and do some simplification as in [inject].
+         * The odd-looking check of the goal form is to avoid cases where [injection] gives a more complex result because of dependent typing, which we aren't equipped to handle here. *)
+      || (minjection H &> match_goal with
+          | [[ |- X = Y -> G ]] =>
+            try (clear H) &> intros &> try subst
+        end)
+  end) || match goal with
+    | [ H : ?F ?X ?U = ?F ?Y ?V |- ?G ] =>
+      (assert (X = Y); [ assumption
+        | assert (U = V); [ assumption | fail 1 ] ])
+      || (injection H;
+        match goal with
+          | [ |- U = V -> X = Y -> G ] =>
+            try clear H; intros; try subst
+        end)
+
+    (** Consider some different arities of a predicate [F] in a hypothesis that we might want to invert. *)
+    | [ H : ?F _ |- _ ] => invert H F
+    | [ H : ?F _ _ |- _ ] => invert H F
+    | [ H : ?F _ _ _ |- _ ] => invert H F
+    | [ H : ?F _ _ _ _ |- _ ] => invert H F
+    | [ H : ?F _ _ _ _ _ |- _ ] => invert H F
+
+    (** Use an (axiom-dependent!) inversion principle for dependent pairs, from the standard library. *)
+    | [ H : existT _ ?T _ = existT _ ?T _ |- _ ] => generalize (inj_pair2 _ _ _ _ _ H); clear H
+
+    (** If we're not ready to use that principle yet, try the standard inversion, which often enables the previous rule. *)
+    | [ H : existT _ _ _ = existT _ _ _ |- _ ] => inversion H; clear H
+
+    (** Similar logic to the cases for constructor injectivity above, but specialized to [Some], since the above cases won't deal with polymorphic constructors. *)
+    | [ H : Some _ = Some _ |- _ ] => injection H; clear H
+  end.
+
+(** Workhorse tactic to simplify hypotheses for a variety of proofs.
+   * Argument [invOne] is a tuple-list of predicates for which we always do inversion automatically. *)
+Ltac simplHypL invOne :=
+  (** Helper function to do inversion on certain hypotheses, where [H] is the hypothesis and [F] its head symbol *)
+  let invert H F :=
+    (** We only proceed for those predicates in [invOne]. *)
+    (* for some reason these two let statements won't commute... *)
+    let list := tuple_to_list invOne in mrun (
+      inList (Dyn F) list &>
+
     (** This case covers an inversion that succeeds immediately, meaning no constructors of [F] applied. *)
     (inversion H &> raise GoalNotExistential)
     (** Otherwise, we only proceed if inversion eliminates all but one constructor case. *)
@@ -201,6 +261,46 @@ Require Import JMeq.
 (** A more parameterized version of the famous [crush].  Extra arguments are:
    * - A tuple-list of lemmas we try [inster]-ing
    * - A tuple-list of predicates we try inversion for *)
+Ltac crushL' lemmas invOne :=
+  (** A useful combination of standard automation *)
+  let sintuition := simpl in *; intuition; try subst;
+    repeat (simplHypL invOne; intuition; try subst); try congruence in
+
+  (** A fancier version of [rewriter] from above, which uses [crush'] to discharge side conditions *)
+  let rewriter :=  autorewrite with core in *;
+    repeat (match goal with
+              | [ H : ?P |- _ ] =>
+                match P with
+                  | context[JMeq] => fail 1 (** JMeq is too fancy to deal with here. *)
+                  | _ => rewrite H by crushL' lemmas invOne
+                end
+            end; autorewrite with core in *) in
+  (** Now the main sequence of heuristics: *)
+    (
+      sintuition;
+      rewriter;
+      match lemmas with
+        | false => idtac (** No lemmas?  Nothing to do here *)
+        | _ =>
+          let lemma_list := tuple_to_list lemmas in
+          (** Try a loop of instantiating lemmas... *)
+          repeat ((mrun (app ltac:(fun L => inster L L) lemma_list)
+          (** ...or instantiating hypotheses... *)
+            || mrun (appHyps ltac:(fun L => inster L L)));
+          (** ...and then simplifying hypotheses. *)
+          repeat (simplHypL invOne; intuition)); un_done
+      end;
+      sintuition;
+      rewriter;
+      sintuition;
+
+      (** End with a last attempt to prove an arithmetic fact with [omega], or prove any sort of fact in a context that is contradictory by reasoning that [omega] can do. *)
+      try omega; try (elimtype False; omega)).
+
+
+(** A more parameterized version of the famous [crush].  Extra arguments are:
+   * - A tuple-list of lemmas we try [inster]-ing
+   * - A tuple-list of predicates we try inversion for *)
 Ltac crush' lemmas invOne :=
   (** A useful combination of standard automation *)
   let sintuition := simpl in *; intuition; try subst;
@@ -285,3 +385,4 @@ Ltac guess v H :=
 Ltac guessKeep v H :=
   let H' := fresh "H'" in
     generalize H; intro H'; guess v H'.
+
