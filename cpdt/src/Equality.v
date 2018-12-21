@@ -1,5 +1,5 @@
 (* Copyright (c) 2008-2012, 2015, Adam Chlipala
- * 
+ *
  * This work is licensed under a
  * Creative Commons Attribution-Noncommercial-No Derivative Works 3.0
  * Unported License.
@@ -76,7 +76,7 @@ Theorem reduce_me : pred' 1 = 0.
   ============================
    (let y := 0 in y) = 0
       ]]
-   
+
       The final reduction rule is %\index{zeta reduction}%zeta, which replaces a [let] expression by its body with the appropriate term substituted. *)
 
   cbv zeta.
@@ -322,7 +322,7 @@ The term "eq_refl ?98" has type "?98 = ?98"
 
   Print lemma1.
   (** %\vspace{-.15in}% [[
-lemma1 = 
+lemma1 =
 fun (x : A) (pf : x = elm) =>
 match pf as e in (_ = y) return (0 = match e with
                                      | eq_refl => 0
@@ -332,7 +332,7 @@ end
      : forall (x : A) (pf : x = elm), 0 = match pf with
                                           | eq_refl => 0
                                           end
- 
+
     ]]
 
     Using what we know about shorthands for [match] annotations, we can write this proof in shorter form manually. *)
@@ -428,7 +428,7 @@ UIP_refl
 (* end hide *)
   Print eq_rect_eq.
   (** %\vspace{-.15in}% [[
-*** [ eq_rect_eq : 
+*** [ eq_rect_eq :
 forall (U : Type) (p : U) (Q : U -> Type) (x : Q p) (h : p = p),
 x = eq_rect p Q x p h ]
       ]]
@@ -785,10 +785,10 @@ Error: Impossible to unify "fhlist B ((ls1 ++ ?1572) ++ ?1573)" with
   Qed.
 (* end thide *)
 
-End fhapp'. 
+End fhapp'.
 
 (** This example illustrates a general pattern: heterogeneous equality often simplifies theorem statements, but we still need to do some work to line up some dependent pattern matches that tactics will generate for us.
-   
+
    The proof we have found relies on the [JMeq_eq] axiom, which we can verify with a command%\index{Vernacular commands!Print Assumptions}% that we will discuss more in two chapters. *)
 
 Print Assumptions fhapp_assoc'.
@@ -883,11 +883,11 @@ Theorem out_of_luck : forall n m : nat,
 <<
 Error: The abstracted term "fun (P : Set) (n0 : P) => S n0 == S m"
 is not well typed.
-Illegal application (Type Error): 
+Illegal application (Type Error):
 The term "S" of type "nat -> nat"
 cannot be applied to the term
  "n0" : "P"
-This term has type "P" which should be coercible to 
+This term has type "P" which should be coercible to
 "nat".
 >>
 
@@ -1019,7 +1019,7 @@ Theorem forall_eq : (forall x : nat, match x with
                                                end) (fun _ => True)).
   (** [[
 2 subgoals
-  
+
   ============================
    (nat -> True) = (nat -> True)
 

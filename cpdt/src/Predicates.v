@@ -1,5 +1,5 @@
 (* Copyright (c) 2008-2012, 2015, Adam Chlipala
- * 
+ *
  * This work is licensed under a
  * Creative Commons Attribution-Noncommercial-No Derivative Works 3.0
  * Unported License.
@@ -65,7 +65,7 @@ Section Propositional.
   (** In Coq, the most basic propositional connective is implication, written [->], which we have already used in almost every proof.  Rather than being defined inductively, implication is built into Coq as the function type constructor.
 
 We have also already seen the definition of [True].  For a demonstration of a lower-level way of establishing proofs of inductive predicates, we turn to this trivial theorem. *)
-  
+
   Theorem obvious : True.
 (* begin thide *)
     apply I.
@@ -109,7 +109,7 @@ We have also already seen the definition of [True].  For a demonstration of a lo
   H : 2 + 2 = 5
   ============================
    False
- 
+
    ]]
 
    For now, we will leave the details of this proof about arithmetic to [crush]. *)
@@ -151,7 +151,7 @@ We have also already seen the definition of [True].  For a demonstration of a lo
 (** %\vspace{-.15in}%[[
     Inductive and (A : Prop) (B : Prop) : Prop :=  conj : A -> B -> A /\ B
   ]]
-  
+
   The interested reader can check that [and] has a Curry-Howard equivalent called %\index{Gallina terms!prod}%[prod], the type of pairs.  However, it is generally most convenient to reason about conjunction using tactics.  An explicit proof of commutativity of [and] illustrates the usual suspects for such tasks.  The operator [/\] is an infix shorthand for [and]. *)
 
   Theorem and_comm : P /\ Q -> Q /\ P.
@@ -165,7 +165,7 @@ We have also already seen the definition of [True].  For a demonstration of a lo
   H0 : Q
   ============================
    Q /\ P
-   
+
    ]]
 
     Every proof of a conjunction provides proofs for both conjuncts, so we get a single subgoal reflecting that.  We can proceed by splitting this subgoal into a case for each conjunct of [Q /\ P].%\index{tactics!split}% *)
@@ -173,7 +173,7 @@ We have also already seen the definition of [True].  For a demonstration of a lo
     split.
 (** [[
 2 subgoals
-  
+
   H : P
   H0 : Q
   ============================
@@ -182,7 +182,7 @@ We have also already seen the definition of [True].  For a demonstration of a lo
 subgoal 2 is
 
    P
- 
+
  ]]
 
  In each case, the conclusion is among our hypotheses, so the %\index{tactics!assumption}%[assumption] tactic finishes the process. *)
@@ -210,7 +210,7 @@ We see that there are two ways to prove a disjunction: prove the first disjunct 
     destruct 1.
 (** [[
 2 subgoals
-  
+
   H : P
   ============================
    Q \/ P
@@ -218,7 +218,7 @@ We see that there are two ways to prove a disjunction: prove the first disjunct 
 subgoal 2 is
 
  Q \/ P
- 
+
  ]]
 
  We can see that, in the first subgoal, we want to prove the disjunction by proving its second disjunct.  The %\index{tactics!right}%[right] tactic telegraphs this intent. *)
@@ -229,7 +229,7 @@ subgoal 2 is
 
        [[
 1 subgoal
-  
+
   H : Q
   ============================
    Q \/ P
@@ -311,7 +311,7 @@ subgoal 2 is
   H0 : length ls1 + length ls2 = 6
   ============================
    length (ls1 ++ ls2) = 6 \/ length ls1 = length ls2
- 
+
    ]]
 
    We can see that we need a theorem about lengths of concatenated lists, which we proved last chapter and is also in the standard library. *)
@@ -323,7 +323,7 @@ subgoal 2 is
   H0 : length ls1 + length ls2 = 6
   ============================
    length ls1 + length ls2 = 6 \/ length ls1 = length ls2
- 
+
    ]]
 
    Now the subgoal follows by purely propositional reasoning.  That is, we could replace [length ls1 + length ls2 = 6] with [P] and [length ls1 = length ls2] with [Q] and arrive at a tautology of propositional logic. *)
@@ -417,7 +417,7 @@ Theorem exist2 : forall n m : nat, (exists x : nat, n + x = m) -> n <= m.
   H : n + x = m
   ============================
    n <= m
- 
+
    ]]
 
    The goal has been replaced by a form where there is a new free variable [x], and where we have a new hypothesis that the body of the existential holds with [x] substituted for the old bound variable.  From here, the proof is just about arithmetic and is easy to automate. *)
@@ -483,7 +483,7 @@ Theorem isZero_plus : forall n m : nat, isZero m -> n + m = n.
   n : nat
   ============================
    n + 0 = n
- 
+
    ]]
 
    Since [isZero] has only one constructor, we are presented with only one subgoal.  The argument [m] to [isZero] is replaced with that type's argument from the single constructor [IsZero].  From this point, the proof is trivial. *)
@@ -502,7 +502,7 @@ Theorem isZero_contra : isZero 1 -> False.
   (** [[
   ============================
    False
- 
+
    ]]
 
    It seems that case analysis has not helped us much at all!  Our sole hypothesis disappears, leaving us, if anything, worse off than we were before.  What went wrong?  We have met an important restriction in tactics like [destruct] and [induction] when applied to types with arguments.  If the arguments are not already free variables, they will be replaced by new free variables internally before doing the case analysis or induction.  Since the argument [1] to [isZero] is replaced by a fresh variable, we lose the crucial fact that it is not equal to [0].
@@ -523,7 +523,7 @@ Theorem isZero_contra' : isZero 1 -> 2 + 2 = 5.
   (** [[
   ============================
    1 + 1 = 4
- 
+
    ]]
 
    What on earth happened here?  Internally, [destruct] replaced [1] with a fresh variable, and, trying to be helpful, it also replaced the occurrence of [1] within the unary representation of each number in the goal.  Then, within the [O] case of the proof, we replace the fresh variable with [O].  This has the net effect of decrementing each of these numbers. *)
@@ -620,7 +620,7 @@ Theorem even_3_contra : even 3 -> False.
   H0 : n = 1
   ============================
    False
- 
+
    ]]
 
    The [inversion] tactic can be a little overzealous at times, as we can see here with the introduction of the unused variable [n] and an equality hypothesis about it.  For more complicated predicates, though, adding such assumptions is critical to dealing with the undecidability of general inversion.  More complex inductive definitions and theorems can cause [inversion] to generate equalities where neither side is a variable. *)
@@ -644,7 +644,7 @@ Theorem even_plus : forall n m, even n -> even m -> even (n + m).
   H0 : even m
   ============================
    even (S (n + m))
- 
+
    ]]
 
    We will need to use the hypotheses [H] and [H0] somehow.  The most natural choice is to invert [H]. *)
@@ -661,7 +661,7 @@ Theorem even_plus : forall n m, even n -> even m -> even (n + m).
   H1 : S n0 = n
   ============================
    even (S (S n0 + m))
- 
+
    ]]
 
   Simplifying the conclusion brings us to a point where we can apply a constructor. *)
@@ -678,14 +678,14 @@ Theorem even_plus : forall n m, even n -> even m -> even (n + m).
 (** [[
   ============================
    even (n0 + m)
- 
+
    ]]
 
    At this point, we would like to apply the inductive hypothesis, which is:
 
    [[
   IHn : forall m : nat, even n -> even m -> even (n + m)
- 
+
   ]]
 
   Unfortunately, the goal mentions [n0] where it would need to mention [n] to match [IHn].  We could keep looking for a way to finish this proof from here, but it turns out that we can make our lives much easier by changing our basic strategy.  Instead of inducting on the structure of [n], we should induct _on the structure of one of the [even] proofs_.  This technique is commonly called%\index{rule induction}% _rule induction_ in programming language semantics.  In the setting of Coq, we have already seen how predicates are defined using the same inductive type mechanism as datatypes, so the fundamental unity of rule induction with "normal" induction is apparent.
@@ -704,7 +704,7 @@ Restart.
 %\noindent \coqdockw{subgoal} 2 \coqdockw{is}:%#<tt>subgoal 2 is</tt>#
 [[
  even m -> even (S (S n) + m)
- 
+
  ]]
 
  The first case is easily discharged by [crush], based on the hint we added earlier to try the constructors of [even]. *)
@@ -722,7 +722,7 @@ Restart.
   H0 : even m
   ============================
    even (S (S n) + m)
- 
+
    ]]
 
    We simplify and apply a constructor, as in our last proof attempt. *)
@@ -732,7 +732,7 @@ Restart.
 (** [[
   ============================
    even (n + m)
- 
+
    ]]
 
    Now we have an exact match with our inductive hypothesis, and the remainder of the proof is trivial. *)
@@ -761,7 +761,7 @@ Theorem even_contra : forall n, even (S (n + n)) -> False.
 %\noindent \coqdockw{subgoal} 2 \coqdockw{is}:%#<tt>subgoal 2 is</tt>#
 [[
  False
- 
+
  ]]
 
  We are already sunk trying to prove the first subgoal, since the argument to [even] was replaced by a fresh variable internally.  This time, we find it easier to prove this theorem by way of a lemma.  Instead of trusting [induction] to replace expressions with fresh variables, we do it ourselves, explicitly adding the appropriate equalities as new assumptions. *)
@@ -783,7 +783,7 @@ Lemma even_contra' : forall n', even n' -> forall n, n' = S (n + n) -> False.
   H0 : S n = n0 + S n0
   ============================
    False
- 
+
    ]]
 
   At this point it is useful to use a theorem from the standard library, which we also proved with a different name in the last chapter.  We can search for a theorem that allows us to rewrite terms of the form [x + S y]. *)
@@ -839,7 +839,7 @@ Lemma even_contra'' : forall n' n, even n' -> n' = S (n + n) -> False.
   IHeven : S (n + n) = S (S (S (n + n))) -> False
   ============================
    False
- 
+
    ]]
 
    We are out of luck here.  The inductive hypothesis is trivially true, since its assumption is false.  In the version of this proof that succeeded, [IHeven] had an explicit quantification over [n].  This is because the quantification of [n] _appeared after the thing we are inducting on_ in the theorem statement.  In general, quantified variables and hypotheses that appear before the induction object in the theorem statement stay fixed throughout the inductive proof.  Variables and hypotheses that are quantified after the induction object may be varied explicitly in uses of inductive hypotheses. *)
