@@ -1,0 +1,9 @@
+-Q theories MtacLite
+theories/MtacLite.v
+-I src
+
+CAMLP4OPTIONS = "-loc loc"
+src/run.mli
+src/run.ml
+src/mtaclite.ml4
+src/mtaclite.mllib

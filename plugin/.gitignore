@@ -1,0 +1,6 @@
+*.cm*
+*.d
+*.o
+Makefile
+Makefile.conf
+*.a
