@@ -1,15 +1,15 @@
-Declare ML Module "mtaclite".
 
 Require Import Strings.String.
 
 Module MtacLite.
 
-Inductive Mtac : Type -> Prop :=
+Inductive Mtac : Type -> Type :=
   | print : string -> Mtac unit
   | tret : forall {A}, A -> Mtac A
-  | bind : forall {A B}, Mtac A -> (A -> Mtac B) -> Mtac B.
+  | bind : forall {A B}, Mtac A -> (A -> Mtac B) -> Mtac B
+  | unify : forall {A B}, A -> B -> Mtac unit.
+
 
 End MtacLite.
 
-(*Export MtacLite.
-*)
+Declare ML Module "mtaclite".

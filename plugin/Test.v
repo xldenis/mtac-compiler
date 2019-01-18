@@ -3,7 +3,8 @@ Add ML Path "./src".
 
 Require Import MtacLite.MtacLite.
 
+Check MtacLite.print "pomg".
 
 Goal True.
 Proof.
-  run (print "omg") as omg.
+ run (MtacLite.print "omg") as omg.
