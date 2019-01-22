@@ -24,7 +24,7 @@ let run_tac t i   =
   Proofview.Goal.enter begin fun gl ->
     let sigma : Evd.evar_map = Proofview.Goal.sigma gl in
     let env : Environ.env = Proofview.Goal.env gl in
-    let c = Run.reify env sigma t in
+    let c = Run.interpret env sigma t in
     (Tactics.letin_tac None (Name i) (Lazy.force c) None Locusops.nowhere)
   end
 
