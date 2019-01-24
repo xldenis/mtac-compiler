@@ -8,3 +8,5 @@ Check MtacLite.print "pomg".
 Goal True.
 Proof.
  run (MtacLite.print "omg") as omg.
+ run (MtacLite.unify False True) as omg2.
+ run (MtacLite.ret 1) as om3.

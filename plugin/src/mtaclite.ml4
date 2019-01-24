@@ -22,10 +22,14 @@ let nowhere = Locus.({ onhyps = Some []; concl_occs = NoOccurrences })
 (* val run_tac : EConstr.t -> Names.Id.t -> Proofview.tactic *)
 let run_tac t i   =
   Proofview.Goal.enter begin fun gl ->
-    let sigma : Evd.evar_map = Proofview.Goal.sigma gl in
+    Refine.refine (fun sigma ->
     let env : Environ.env = Proofview.Goal.env gl in
-    let c = Run.interpret env sigma t in
-    (Tactics.letin_tac None (Name i) (Lazy.force c) None Locusops.nowhere)
+    let goal : EConstr.t = Proofview.Goal.concl gl in
+    let result = Run.interpret env sigma goal t in
+    match result with
+    | Val (_, s, c) -> (s, Lazy.force c)
+    | Err (_, _, _) -> failwith "FAILURE!" (* figure out how to raise errors to coq nicely *)
+    ) ~typecheck:true
   end
 
 
