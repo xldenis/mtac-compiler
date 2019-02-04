@@ -13,6 +13,7 @@ Inductive Mtac : Type -> Type :=
     ((forall x : A, S (B x)) -> (forall x : A, S (B x))) ->
     forall x : A, Mtac (B x)
   | fail : forall {A}, string -> Mtac A
+  | nu : forall {A B}, (A -> Mtac B) -> Mtac B
   .
 
 

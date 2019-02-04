@@ -53,12 +53,14 @@ end
 
 module MtacTerm = struct
   let path = ["MtacLite"; "MtacLite"; "MtacLite"]
+
   let mtacPrint = lazy (find_constant path "print")
   let mtacBind  = lazy (find_constant path "bind" )
   let mtacRet   = lazy (find_constant path "ret"  )
   let mtacUnify = lazy (find_constant path "unify")
   let mtacFix   = lazy (find_constant path "fix"  )
   let mtacRaise = lazy (find_constant path "raise")
+  let mtacNu    = lazy (find_constant path "nu"   )
 end
 
 (* the objective here is to write the interpreter for mtaclite. Afterwards I'll write the compiler *)
@@ -103,6 +105,9 @@ let unify sigma env evars t1 t2  : bool =
   with _ -> false
 
 open MtacTerm
+
+exception Omg of string
+
 (*                                                          lol -v    *)
 (* val print : Environ.env -> Evd.evar_map -> EConstr.constr -> IO () *)
 let print env sigma cons = Feedback.msg_info (str (Printf.sprintf "MTACLITE: %s\n" (CoqString.from_coq env sigma cons))) ;()
@@ -130,5 +135,23 @@ let rec interpret env sigma goal constr =
         let fix_iter = mkApp(hs, [|a; b; s; i; f; x|]) in
         let c = mkApp(f, [|fix_iter; x|]) in
         interpret env sigma goal c
+    | [a; _; f] when eq_constr sigma hs (Lazy.force mtacNu) ->
+        let fx  = mkApp(Vars.lift 1 f, [|mkRel 1|]) in (* wtf is mkRel? *)
+        let env = push_rel (LocalAssum (Anonymous, a)) env in
+        match (interpret env sigma goal fx) with
+        | Val (env, sigma, co) ->
+          let co' = Lazy.force co in
+          (* check that our variable isn't leaked *)
+          if Int.Set.mem 1 (Termops.free_rels sigma co') then
+            Loc.raise (Omg "omg")
+          else
+            Val (env, sigma, lazy (Termops.pop co'))
+          (* return *)
+        | Err (env, sigma, er) ->
+            Loc.raise (Omg "omg-2")
+
+          (* check for variable leak *)
+          (* fail *)
+
     | _ -> Feedback.msg_info (str (Printf.sprintf "%d" (List.length args))); Val (env, sigma, CoqBool.mkFalse)
 
