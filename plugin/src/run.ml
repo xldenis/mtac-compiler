@@ -51,6 +51,26 @@ module CoqString = struct
       failwith "omgg"
 end
 
+module CoqEq = struct
+  let mkEq = lazy (find_constant ["Coq"; "Init"; "Logic"] "eq")
+  let mkEqRefl = lazy (find_constant ["Coq"; "Init"; "Logic"] "eq_refl")
+
+  let mkNot = lazy (find_constant ["Coq"; "Init"; "Logic"] "not")
+
+  let mkAppNot x = mkApp(Lazy.force mkNot, [|x|])
+  let mkAppEq a x y = mkApp(Lazy.force mkEq, [|a;x;y|])
+  let mkAppEqRefl a x = mkApp(Lazy.force mkEqRefl, [|a;x|])
+end
+
+module CoqSumBool = struct
+  let left = lazy (find_constant ["Coq"; "Init"; "Specif"] "left")
+  let right = lazy (find_constant ["Coq"; "Init"; "Specif"] "right")
+
+  let mkLeft a b l = mkApp(Lazy.force left, [|a; b; l|])
+
+  let mkRight a b r = mkApp(Lazy.force right, [|a;b;r|])
+end
+
 module MtacTerm = struct
   let path = ["MtacLite"; "MtacLite"; "MtacLite"]
 
@@ -61,6 +81,8 @@ module MtacTerm = struct
   let mtacFix   = lazy (find_constant path "fix"  )
   let mtacRaise = lazy (find_constant path "raise")
   let mtacNu    = lazy (find_constant path "nu"   )
+  let mtacEvar  = lazy (find_constant path "evar" )
+  let mtacTry   = lazy (find_constant path "try"  )
 end
 
 (* the objective here is to write the interpreter for mtaclite. Afterwards I'll write the compiler *)
@@ -115,20 +137,29 @@ let print env sigma cons = Feedback.msg_info (str (Printf.sprintf "MTACLITE: %s\
 let rec interpret env sigma goal constr =
   let red = whd_all env sigma constr in
   let hs, args = decompose_app sigma red in
+
   match args with
     | [f]    when eq_constr sigma hs (Lazy.force mtacPrint) ->
         print env sigma f;
         Val (env, sigma, CoqUnit.mkTT)
-    | [_; _; a; b] when eq_constr sigma hs (Lazy.force mtacUnify) ->
-      let unified = unify sigma env [] a b in
+    | [t; a; b] when eq_constr sigma hs (Lazy.force mtacUnify) ->
+      let a_red = whd_all env sigma a in
+      let b_red = whd_all env sigma b in
+      let unified = unify sigma env [] a_red b_red in
       if unified then
-        Val (env, sigma, CoqBool.mkTrue)
+        let o = CoqSumBool.mkLeft (CoqEq.mkAppEq t a b) (CoqEq.mkAppNot (CoqEq.mkAppEq t a b)) ((CoqEq.mkAppEqRefl t a)) in
+        Val (env, sigma, lazy o)
       else
-        Val (env, sigma, CoqBool.mkFalse)
+       let o = CoqSumBool.mkRight (CoqEq.mkAppEq t a b) (CoqEq.mkAppNot (CoqEq.mkAppEq t a b)) ((CoqEq.mkAppEqRefl t a)) in
+        Val (env, sigma, lazy o)
     | [_; _; a; b] when eq_constr sigma hs (Lazy.force mtacBind)  ->
+      Feedback.msg_info (str "omg");
       interpret env sigma goal a >>= fun (env', sigma', a') ->
+        Feedback.msg_info (str "omg-2");
         let t' = mkApp(b, [| Lazy.force a'|]) in
-        interpret env' sigma' goal t'
+        let o = interpret env' sigma' goal t' in
+        Feedback.msg_info (str "omg-3"); o
+
     | [_; a]    when eq_constr sigma hs (Lazy.force mtacRet)  -> Val (env, sigma, lazy a)
     | [_; a]    when eq_constr sigma hs (Lazy.force mtacRaise) -> Err (env, sigma, lazy a)
     | [a; b; s; i; f; x] when eq_constr sigma hs (Lazy.force mtacFix) ->
@@ -138,6 +169,7 @@ let rec interpret env sigma goal constr =
     | [a; _; f] when eq_constr sigma hs (Lazy.force mtacNu) ->
         let fx  = mkApp(Vars.lift 1 f, [|mkRel 1|]) in (* wtf is mkRel? *)
         let env = push_rel (LocalAssum (Anonymous, a)) env in
+        begin
         match (interpret env sigma goal fx) with
         | Val (env, sigma, co) ->
           let co' = Lazy.force co in
@@ -148,10 +180,18 @@ let rec interpret env sigma goal constr =
             Val (env, sigma, lazy (Termops.pop co'))
           (* return *)
         | Err (env, sigma, er) ->
-            Loc.raise (Omg "omg-2")
-
           (* check for variable leak *)
           (* fail *)
-
-    | _ -> Feedback.msg_info (str (Printf.sprintf "%d" (List.length args))); Val (env, sigma, CoqBool.mkFalse)
-
+            Loc.raise (Omg "omg-2")
+        end
+    | [a] when eq_constr sigma hs (Lazy.force mtacEvar) ->
+        let (sigma', ev) = Evarutil.new_evar env sigma a in
+        Val (env, sigma', lazy ev)
+    | [a; m; r] when eq_constr sigma hs (Lazy.force mtacTry) ->
+        begin
+        match (interpret env sigma goal m) with
+        | Val (a, b, c) -> Val (a, b, c)
+        | Err(_, _, _) -> interpret env sigma goal r
+        end
+    | _ -> Feedback.msg_info (str (Printf.sprintf "%d" (List.length args)));
+        Val (env, sigma, lazy constr)
