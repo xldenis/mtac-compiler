@@ -1,0 +1,82 @@
+open EConstr
+open Reductionops
+
+let find_constant dir s = EConstr.of_constr (
+  Universes.constr_of_global (Coqlib.find_reference "mtac_plugin" dir s)
+)
+
+module CoqUnit = struct
+  let mkTT : constr lazy_t = lazy (find_constant ["Coq"; "Init"; "Datatypes"] "tt")
+end
+
+module CoqBool = struct
+  let mkTrue =  lazy (find_constant ["Coq"; "Init" ; "Datatypes"] "true")
+  let mkFalse = lazy (find_constant ["Coq"; "Init" ; "Datatypes"] "false")
+
+  let isTrue sigma o = eq_constr sigma (Lazy.force mkTrue) o
+end
+
+module CoqAscii = struct
+  let from_coq env sigma c =
+    let (h, args) = whd_all_stack env sigma c in
+    let rec from_bits n bits =
+      match bits with
+        | [] -> 0
+        | (b :: bs) -> (if CoqBool.isTrue sigma b then 1 else 0) lsl n + from_bits (n+1) bs
+    in
+    let n = from_bits 0 args in
+    Char.escaped (Char.chr n)
+end
+
+module CoqString = struct
+
+  let mkEmpty =  lazy (find_constant  ["Coq"; "Strings" ; "String"] "EmptyString")
+  let mkString = lazy (find_constant ["Coq"; "Strings" ; "String"] "String")
+
+  let isEmpty sigma o  = eq_constr sigma (Lazy.force mkEmpty) o
+  let isString sigma o = eq_constr sigma (Lazy.force mkString) o
+
+  let rec from_coq env sigma s =
+    let (h, args) = whd_all_stack env sigma s in
+    if isEmpty sigma h then
+      ""
+    else if isString sigma h then
+      let c, s' = List.nth args 0, List.nth args 1 in
+      CoqAscii.from_coq env sigma c ^ from_coq env sigma s'
+    else
+      failwith "omgg"
+end
+
+module CoqEq = struct
+  let mkEq = lazy (find_constant ["Coq"; "Init"; "Logic"] "eq")
+  let mkEqRefl = lazy (find_constant ["Coq"; "Init"; "Logic"] "eq_refl")
+
+  let mkNot = lazy (find_constant ["Coq"; "Init"; "Logic"] "not")
+
+  let mkAppNot x = mkApp(Lazy.force mkNot, [|x|])
+  let mkAppEq a x y = mkApp(Lazy.force mkEq, [|a;x;y|])
+  let mkAppEqRefl a x = mkApp(Lazy.force mkEqRefl, [|a;x|])
+end
+
+module CoqSumBool = struct
+  let left = lazy (find_constant ["Coq"; "Init"; "Specif"] "left")
+  let right = lazy (find_constant ["Coq"; "Init"; "Specif"] "right")
+
+  let mkLeft a b l = mkApp(Lazy.force left, [|a; b; l|])
+
+  let mkRight a b r = mkApp(Lazy.force right, [|a;b;r|])
+end
+
+module MtacTerm = struct
+  let path = ["MtacLite"; "MtacLite"; "MtacLite"]
+
+  let mtacPrint = lazy (find_constant path "print")
+  let mtacBind  = lazy (find_constant path "bind" )
+  let mtacRet   = lazy (find_constant path "ret"  )
+  let mtacUnify = lazy (find_constant path "unify")
+  let mtacFix   = lazy (find_constant path "fix"  )
+  let mtacRaise = lazy (find_constant path "raise")
+  let mtacNu    = lazy (find_constant path "nu"   )
+  let mtacEvar  = lazy (find_constant path "evar" )
+  let mtacTry   = lazy (find_constant path "try"  )
+end

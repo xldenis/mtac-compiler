@@ -5,5 +5,8 @@ theories/MtacLite.v
 CAMLP4OPTIONS = "-loc loc"
 src/run.mli
 src/run.ml
+src/compiler.mli
+src/compiler.ml
+src/coqffi.ml
 src/mtaclite.ml4
 src/mtaclite.mllib

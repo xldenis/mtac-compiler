@@ -8,7 +8,7 @@ Inductive Mtac : Type -> Type :=
   | ret   : forall {A}, A -> Mtac A
   | bind  : forall {A B}, Mtac A -> (A -> Mtac B) -> Mtac B
   | unify : forall {A} (x y : A) ,Mtac ({ x = y } + {x <> y })
-  | fix'  : forall {A B} (S : Type -> Prop),
+  | fix'  : forall {A B} (S : Prop -> Prop),
     (forall a, S a -> Mtac a) ->
     ((forall x : A, S (B x)) -> (forall x : A, S (B x))) ->
     forall x : A, Mtac (B x)
