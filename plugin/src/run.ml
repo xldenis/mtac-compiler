@@ -67,17 +67,16 @@ let rec interpret env sigma goal constr =
       let b_red = whd_all env sigma b in
       let unified = unify sigma env [] a_red b_red in
       if unified then
-        let o = CoqSumBool.mkLeft (CoqEq.mkAppEq t a b) (CoqEq.mkAppNot (CoqEq.mkAppEq t a b)) ((CoqEq.mkAppEqRefl t a)) in
+        let o = CoqOption.mkSome (CoqEq.mkAppEq t a b) (CoqEq.mkAppEqRefl t a) in
         Val (env, sigma, lazy o)
       else
-       let o = CoqSumBool.mkRight (CoqEq.mkAppEq t a b) (CoqEq.mkAppNot (CoqEq.mkAppEq t a b)) ((CoqEq.mkAppEqRefl t a)) in
+       let o = CoqOption.mkNothing (CoqEq.mkAppEq t a b)in
         Val (env, sigma, lazy o)
     | [_; _; a; b] when eq_constr sigma hs (Lazy.force mtacBind)  ->
       interpret env sigma goal a >>= fun (env', sigma', a') ->
         let t' = mkApp(b, [| Lazy.force a'|]) in
         let o = interpret env' sigma' goal t' in
         o
-
     | [_; a]    when eq_constr sigma hs (Lazy.force mtacRet)  -> Val (env, sigma, lazy a)
     | [_; a]    when eq_constr sigma hs (Lazy.force mtacRaise) -> Err (env, sigma, lazy a)
     | [a; b; s; i; f; x] when eq_constr sigma hs (Lazy.force mtacFix) ->

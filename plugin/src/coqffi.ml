@@ -59,13 +59,13 @@ module CoqEq = struct
   let mkAppEqRefl a x = mkApp(Lazy.force mkEqRefl, [|a;x|])
 end
 
-module CoqSumBool = struct
-  let left = lazy (find_constant ["Coq"; "Init"; "Specif"] "left")
-  let right = lazy (find_constant ["Coq"; "Init"; "Specif"] "right")
+module CoqOption = struct
+  let some = lazy (find_constant ["Coq"; "Init"; "Datatypes"] "Some")
+  let nothing = lazy (find_constant ["Coq"; "Init"; "Datatypes"] "None")
 
-  let mkLeft a b l = mkApp(Lazy.force left, [|a; b; l|])
+  let mkSome a b = mkApp(Lazy.force some, [|a; b|])
 
-  let mkRight a b r = mkApp(Lazy.force right, [|a;b;r|])
+  let mkNothing a  = mkApp(Lazy.force nothing, [|a|])
 end
 
 module MtacTerm = struct
