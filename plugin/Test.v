@@ -1,11 +1,11 @@
-Add Rec LoadPath "./theories" as MtacLite.
-Add ML Path "./src".
+Add Rec LoadPath "./_build/default/theories" as MtacLite.
+Add ML Path "./_build/default/src".
 
 Require Import MtacLite.MtacLite.
 
 Import MtacLite.MtacLiteNotations.
 
-Check print "pomg".
+(*Check print "pomg".*)
 
 Definition isAnd (a : Prop) : Mtac bool :=
     x <- evar;
@@ -42,7 +42,7 @@ Lemma True_eq_True : (True = True).
 
   - exact e.
   - contradiction.
-Qed. 
+Qed.
 
 
 (*   run (unify True False) as omg. *)
@@ -56,7 +56,7 @@ Goal True.
 Proof.
   compile (print "gmo") as t1.
   compile (ret 1) as t2.
-  compile (bind (ret 2) (fun x => ret x)) as t3. 
+  compile (bind (ret 2) (fun x => ret x)) as t3.
   compile (unify tt tt) as t4.
 
 Admitted.

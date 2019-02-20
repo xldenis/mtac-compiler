@@ -1,0 +1,6 @@
+(coqlib
+  (name MtacLite)
+  (public_name mtaclite.MtacLite)
+  (synopsis "MtacLite Plugin")
+  (libraries mtaclite.plugin)
+  (modules :standard \ IdDec NoCycle))

@@ -2,7 +2,7 @@
 theories/MtacLite.v
 -I src
 
-CAMLP4OPTIONS = "-loc loc"
+COQDOCFLAGS = "-parse-comments -utf8 -interpolate"
 src/run.mli
 src/run.ml
 src/compiler.mli

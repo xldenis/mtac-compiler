@@ -7,6 +7,6 @@
 
   (rule
     (targets mtaclite.ml)
-    (deps (:pp-file mtaclite.ml4))
+    (deps (:pp-file mtaclite.mlg))
     (action (run coqpp %{pp-file})))
 

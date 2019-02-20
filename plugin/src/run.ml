@@ -33,7 +33,7 @@ let find_pbs (sigma : Evd.evar_map) (evars : EConstr.constr list ) : Evd.evar_co
     let (_, pbs) = Evd.extract_all_conv_pbs sigma in
     List.filter (fun (_,_,c1,c2) ->
       List.exists (fun e ->
-    (Termops.dependent sigma e (EConstr.of_constr c1)) || Termops.dependent sigma e (EConstr.of_constr c2)) evars) pbs
+    (Termops.dependent sigma e c1) || Termops.dependent sigma e c2) evars) pbs
 open Pp
 
 (* unify : Evd.evar_map -> Environ.env -> EConstr.constr list -> Econstr -> Econstr -> bool *)
@@ -73,12 +73,10 @@ let rec interpret env sigma goal constr =
        let o = CoqSumBool.mkRight (CoqEq.mkAppEq t a b) (CoqEq.mkAppNot (CoqEq.mkAppEq t a b)) ((CoqEq.mkAppEqRefl t a)) in
         Val (env, sigma, lazy o)
     | [_; _; a; b] when eq_constr sigma hs (Lazy.force mtacBind)  ->
-      Feedback.msg_info (str "omg");
       interpret env sigma goal a >>= fun (env', sigma', a') ->
-        Feedback.msg_info (str "omg-2");
         let t' = mkApp(b, [| Lazy.force a'|]) in
         let o = interpret env' sigma' goal t' in
-        Feedback.msg_info (str "omg-3"); o
+        o
 
     | [_; a]    when eq_constr sigma hs (Lazy.force mtacRet)  -> Val (env, sigma, lazy a)
     | [_; a]    when eq_constr sigma hs (Lazy.force mtacRaise) -> Err (env, sigma, lazy a)

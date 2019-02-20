@@ -1,3 +1,4 @@
-(lang dune 1.4)
+(lang dune 1.6)
+(using coq 0.1)
 (name mtaclite)
 

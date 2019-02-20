@@ -21,8 +21,6 @@ open Nativecode
 open Nativevalues
 open Context.Rel.Declaration
 
-module NamedDecl = Context.Named.Declaration
-
 (** This module implements normalization by evaluation to OCaml code *)
 
 exception Find_at of int
@@ -125,7 +123,7 @@ let construct_of_constr_notnative const env tag (mind, _ as ind) u allargs =
   try
     if const then
       let ctyp = type_constructor mind mib u (mip.mind_nf_lc.(0)) params in
-      retroknowledge Retroknowledge.get_vm_decompile_constant_info env (mkInd ind) tag, ctyp
+      Retroknowledge.get_vm_decompile_constant_info env.retroknowledge (mkInd ind) tag, ctyp
     else
       raise Not_found
   with Not_found ->
@@ -133,19 +131,20 @@ let construct_of_constr_notnative const env tag (mind, _ as ind) u allargs =
   let ctyp = type_constructor mind mib u (mip.mind_nf_lc.(i-1)) params in
   (mkApp(mkConstructU((ind,i),u), params), ctyp)
 
-let construct_of_constr const env tag typ =
+
+let construct_of_constr const env sigma tag typ =
   let t, l = app_type env typ in
-  match kind t with
+  match EConstr.kind_upto sigma t with
   | Ind (ind,u) ->
       construct_of_constr_notnative const env tag ind u l
   | _ -> assert false
 
-let construct_of_constr_const env tag typ =
-  fst (construct_of_constr true env tag typ)
+let construct_of_constr_const env sigma tag typ =
+  fst (construct_of_constr true env sigma tag typ)
 
 let construct_of_constr_block = construct_of_constr false
 
-let build_branches_type env sigma (mind,_ as _ind) mib mip u params dep p =
+let build_branches_type env sigma (mind,_ as _ind) mib mip u params p =
   let rtbl = mip.mind_reloc_tbl in
   (* [build_one_branch i cty] construit le type de la ieme branche (commence
      a 0) et les lambda correspondant aux realargs *)
@@ -162,20 +161,17 @@ let build_branches_type env sigma (mind,_ as _ind) mib mip u params dep p =
     let codom =
       let ndecl = List.length decl in
       let papp = mkApp(lift ndecl p,crealargs) in
-      if dep then
-  let cstr = ith_constructor_of_inductive (fst ind) (i+1) in
-        let relargs = Array.init carity (fun i -> mkRel (carity-i)) in
-  let params = Array.map (lift ndecl) params in
-  let dep_cstr = mkApp(mkApp(mkConstructU (cstr,snd ind),params),relargs) in
-  mkApp(papp,[|dep_cstr|])
-      else papp
+      let cstr = ith_constructor_of_inductive (fst ind) (i+1) in
+      let relargs = Array.init carity (fun i -> mkRel (carity-i)) in
+      let params = Array.map (lift ndecl) params in
+      let dep_cstr = mkApp(mkApp(mkConstructU (cstr,snd ind),params),relargs) in
+      mkApp(papp,[|dep_cstr|])
     in
     decl, decl_with_letin, codom
   in Array.mapi build_one_branch mip.mind_nf_lc
 
-let build_case_type dep p realargs c =
-  if dep then mkApp(mkApp(p, realargs), [|c|])
-  else mkApp(p, realargs)
+let build_case_type p realargs c =
+  mkApp(mkApp(p, realargs), [|c|])
 
 (* normalisation of values *)
 
@@ -188,6 +184,14 @@ let branch_of_switch lvl ans bs =
       else mk_block tag (mk_rels_accu lvl arity) in
     bs ci in
   Array.init (Array.length tbl) branch
+
+let get_proj env (ind, proj_arg) =
+  let mib = Environ.lookup_mind (fst ind) env in
+  match Declareops.inductive_make_projection ind mib ~proj_arg with
+  | None ->
+    CErrors.anomaly (Pp.strbrk "Return type is not a primitive record")
+  | Some p ->
+    Projection.make p true
 
 let rec nf_val env sigma v typ =
   match kind_of_value v with
@@ -203,9 +207,9 @@ let rec nf_val env sigma v typ =
       let env = push_rel (LocalAssum (name,dom)) env in
       let body = nf_val env sigma (f (mk_rel_accu lvl)) codom in
       mkLambda(name,dom,body)
-  | Vconst n -> construct_of_constr_const env n typ
+  | Vconst n -> construct_of_constr_const env sigma n typ
   | Vblock b ->
-      let capp,ctyp = construct_of_constr_block env (block_tag b) typ in
+      let capp,ctyp = construct_of_constr_block env sigma (block_tag b) typ in
       let args = nf_bargs env sigma b ctyp in
       mkApp(capp,args)
 
@@ -280,9 +284,10 @@ and nf_atom env sigma atom =
       let codom = nf_type env sigma (codom vn) in
       mkProd(n,dom,codom)
   | Ameta (mv,_) -> mkMeta mv
-  | Aproj(p,c) ->
+  | Aproj (p, c) ->
       let c = nf_accu env sigma c in
-  mkProj(Projection.make p true,c)
+      let p = get_proj env p in
+      mkProj(p, c)
   | _ -> fst (nf_atom_type env sigma atom)
 
 and nf_atom_type env sigma atom =
@@ -304,13 +309,13 @@ and nf_atom_type env sigma atom =
       let (mib,mip) = Inductive.lookup_mind_specif env (fst ind) in
       let nparams = mib.mind_nparams in
       let params,realargs = Array.chop nparams allargs in
+      let nparamdecls = Context.Rel.length (Inductive.inductive_paramdecls (mib,u)) in
       let pT =
-  hnf_prod_applist env
+        hnf_prod_applist_assum env nparamdecls
     (Inductiveops.type_of_inductive env ind) (Array.to_list params) in
-      let pT = whd_all env pT in
-      let dep, p = nf_predicate env sigma ind mip params p pT in
+      let p = nf_predicate env sigma ind mip params p pT in
       (* Calcul du type des branches *)
-      let btypes = build_branches_type env sigma (fst ind) mib mip u params dep p in
+      let btypes = build_branches_type env sigma (fst ind) mib mip u params p in
       (* calcul des branches *)
       let bsw = branch_of_switch (nb_rel env) ans bs in
       let mkbranch i v =
@@ -319,7 +324,7 @@ and nf_atom_type env sigma atom =
         Termops.it_mkLambda_or_LetIn_from_no_LetIn b decl_with_letin
       in
       let branchs = Array.mapi mkbranch bsw in
-      let tcase = build_case_type dep p realargs a in
+      let tcase = build_case_type p realargs a in
       let ci = ans.asw_ci in
       mkCase(ci, p, a, branchs), tcase
   | Afix(tt,ft,rp,s) ->
@@ -349,7 +354,7 @@ and nf_atom_type env sigma atom =
       let env = push_rel (LocalAssum (n,dom)) env in
       let codom,s2 = nf_type_sort env sigma (codom vn) in
       mkProd(n,dom,codom), Typeops.type_of_product env n s1 s2
-  | Aevar(evk, _, args) ->
+  | Aevar(evk,args) ->
     nf_evar env sigma evk args
   | Ameta(mv,ty) ->
      let ty = nf_type env sigma ty in
@@ -357,25 +362,30 @@ and nf_atom_type env sigma atom =
   | Aproj(p,c) ->
       let c,tc = nf_accu_type env sigma c in
       let cj = make_judge c tc in
-      let uj = Typeops.judge_of_projection env (Projection.make p true) cj in
+      let p = get_proj env p in
+      let uj = Typeops.judge_of_projection env p cj in
       uj.uj_val, uj.uj_type
 
 
 and  nf_predicate env sigma ind mip params v pT =
-  match kind_of_value v, kind pT with
-  | Vfun f, Prod _ ->
+  match kind (whd_allnolet env pT) with
+  | LetIn (name,b,t,pT) ->
+      let body =
+        nf_predicate (push_rel (LocalDef (name,b,t)) env) sigma ind mip params v pT in
+      mkLetIn (name,b,t,body)
+  | Prod (name,dom,codom) -> begin
+    match kind_of_value v with
+    | Vfun f ->
       let k = nb_rel env in
       let vb = f (mk_rel_accu k) in
-      let name,dom,codom =
-  try decompose_prod env pT with
-    DestKO ->
-    CErrors.anomaly
-      (Pp.strbrk "Returned a functional value in a type not recognized as a product type.")
-      in
-      let dep,body =
+      let body =
   nf_predicate (push_rel (LocalAssum (name,dom)) env) sigma ind mip params vb codom in
-      dep, mkLambda(name,dom,body)
-  | Vfun f, _ ->
+      mkLambda(name,dom,body)
+    | _ -> nf_type env sigma v
+    end
+  | _ ->
+    match kind_of_value v with
+    | Vfun f ->
       let k = nb_rel env in
       let vb = f (mk_rel_accu k) in
       let name = Name (Id.of_string "c") in
@@ -384,13 +394,13 @@ and  nf_predicate env sigma ind mip params v pT =
       let params = if Int.equal n 0 then params else Array.map (lift n) params in
       let dom = mkApp(mkIndU ind,Array.append params rargs) in
       let body = nf_type (push_rel (LocalAssum (name,dom)) env) sigma vb in
-      true, mkLambda(name,dom,body)
-  | _, _ -> false, nf_type env sigma v
+      mkLambda(name,dom,body)
+    | _ -> nf_type env sigma v
 
 and nf_evar env sigma evk args =
   let evi = try Evd.find sigma evk with Not_found -> assert false in
   let hyps = Environ.named_context_of_val (Evd.evar_filtered_hyps evi) in
-  let ty = Evd.evar_concl evi in
+  let ty = EConstr.Unsafe.to_constr @@ Evd.evar_concl evi in
   if List.is_empty hyps then begin
     assert (Int.equal (Array.length args) 0);
     mkEvar (evk, [||]), ty
@@ -398,11 +408,7 @@ and nf_evar env sigma evk args =
   else
     (** Let-bound arguments are present in the evar arguments but not in the
         type, so we turn the let into a product. *)
-    let drop_body = function
-    | NamedDecl.LocalAssum _ as d -> d
-    | NamedDecl.LocalDef (na, _, t) -> NamedDecl.LocalAssum (na, t)
-    in
-    let hyps = List.map drop_body hyps in
+    let hyps = Context.Named.drop_bodies hyps in
     let fold accu d = Term.mkNamedProd_or_LetIn d accu in
     let t = List.fold_left fold ty hyps in
     let ty, args = nf_args env sigma args t in
@@ -411,9 +417,8 @@ and nf_evar env sigma evk args =
     mkEvar (evk, Array.rev_of_list args), ty
 
 let evars_of_evar_map sigma =
-  { Nativelambda.evars_val = Evd.existential_opt_value sigma;
-    Nativelambda.evars_typ = Evd.existential_type sigma;
-    Nativelambda.evars_metas = Evd.meta_type sigma }
+  { Nativelambda.evars_val = Evd.existential_opt_value0 sigma;
+    Nativelambda.evars_metas = Evd.meta_type0 sigma }
 
 (* fork perf process, return profiler's process id *)
 let start_profiler_linux profile_fn =
@@ -495,7 +500,7 @@ let find_pbs (sigma : Evd.evar_map) (evars : EConstr.constr list ) : Evd.evar_co
     let (_, pbs) = Evd.extract_all_conv_pbs sigma in
     List.filter (fun (_,_,c1,c2) ->
       List.exists (fun e ->
-    (Termops.dependent sigma e (EConstr.of_constr c1)) || Termops.dependent sigma e (EConstr.of_constr c2)) evars) pbs
+    (Termops.dependent sigma e ( c1)) || Termops.dependent sigma e ( c2)) evars) pbs
 
 (* unify : Evd.evar_map -> Environ.env -> EConstr.constr list -> Econstr -> Econstr -> bool *)
 let unify sigma env evars t1 t2  : bool =
@@ -522,7 +527,7 @@ let rec interpret env sigma (v : Nativevalues.t) ty = begin match (Obj.magic v :
   | Unify (ta, a, b) -> (* how do we get the type here? do.a readback of ta with type Type ?? but whicch Type?? *)
 
     (* really we only need [ty] to get a reference to the Mtac constr, so we should be able to just use a constant ffi value instead *)
-    let capp, ctyp = construct_of_constr_block env (block_tag (Obj.magic v)) ty in
+    let capp, ctyp = construct_of_constr_block env sigma (block_tag (Obj.magic v)) ty in
 
     let _, tta, rest = decompose_prod env ctyp in
     let nta = nf_val env sigma ta tta in
@@ -549,7 +554,7 @@ let compile env sigma goal constr =
   Feedback.msg_info (str "starting compilation");
 
   let ml_filename, prefix = Nativelib.get_ml_filename () in
-  let code, upd = mk_norm_code (Environ.pre_env env) (evars_of_evar_map sigma) prefix c in
+  let code, upd = mk_norm_code (env) (evars_of_evar_map sigma) prefix c in
 
   match Nativelib.compile ml_filename code ~profile:false with
     | true, fn ->
@@ -562,7 +567,7 @@ let compile env sigma goal constr =
       (* Readback of values is 'type-directed', it deconstructs the value's type as it builds up it's coq representation.
          We already know our return type is Mtac A, so we destruct it to get the A inside
        *)
-      let capp, ctyp = construct_of_constr_block env (block_tag (Obj.magic !Nativelib.rt1)) ty in
+      let capp, ctyp = construct_of_constr_block env sigma (block_tag (Obj.magic !Nativelib.rt1)) ty in
       let _, [arg] = decompose_app ty in
 
       (* Feedback.msg_info (Printer.pr_econstr (EConstr.of_constr arg)) ; *)
