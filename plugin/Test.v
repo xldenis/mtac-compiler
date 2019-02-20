@@ -32,6 +32,13 @@ Proof.
   compile (unify tt tt) as t4.
 Admitted.
 
+Lemma compile_evar : True.
+Proof.
+  compile (@evar nat) as t1.
+  run (@evar nat) as r1.
+  compile (ret t1) as c.
+Qed.
+
 Goal True.
 Proof.
   run (MtacLite.print "omg") as omg.

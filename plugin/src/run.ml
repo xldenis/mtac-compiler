@@ -8,51 +8,18 @@ open Coqffi
 
 (* the objective here is to write the interpreter for mtaclite. Afterwards I'll write the compiler *)
 
-(* MONADS !! :) *)
-type data = Val of (Environ.env * Evd.evar_map * EConstr.constr lazy_t)
-      | Err of (Environ.env * Evd.evar_map * EConstr.constr lazy_t)
+open Monad
+open Unify
 
-
-let (>>=) v g =
-  match v with
-    | Val v' -> g v'
-    | _ -> v
-
-(* let return s es t = Val (s, es, t)
-
-let fail s es t = Err (s, es, t)
- *)
-
-(*
-  I believe this function was useful in the full version of mtac where it was used inside the mmatch branches
-  i assume the purpose was to check that we didn't leak any Evars that were introduced by deconstructingg in a branch?
-
-  I'm not educated enough yet to figure out if it's actually necessary though...
- *)
-let find_pbs (sigma : Evd.evar_map) (evars : EConstr.constr list ) : Evd.evar_constraint list =
-    let (_, pbs) = Evd.extract_all_conv_pbs sigma in
-    List.filter (fun (_,_,c1,c2) ->
-      List.exists (fun e ->
-    (Termops.dependent sigma e c1) || Termops.dependent sigma e c2) evars) pbs
 open Pp
-
-(* unify : Evd.evar_map -> Environ.env -> EConstr.constr list -> Econstr -> Econstr -> bool *)
-let unify sigma env evars t1 t2  : bool =
-  try
-    (* it appears that the_conv_x is the way to actually run the coq unification engine *)
-    let unif_sigma = Evarconv.the_conv_x env t2 t1 sigma in
-    (* this apparently attempts to apply a bunch a heuristics ?  *)
-    let remaining  = Evarconv.consider_remaining_unif_problems env unif_sigma in
-        List.length (find_pbs remaining evars) = 0
-  with _ -> false
-
-open MtacTerm
-
-exception Omg of string
 
 (*                                                          lol -v    *)
 (* val print : Environ.env -> Evd.evar_map -> EConstr.constr -> IO () *)
 let print env sigma cons = Feedback.msg_info (str (Printf.sprintf "MTACLITE: %s\n" (CoqString.from_coq env sigma cons))) ;()
+
+open MtacTerm
+
+exception Omg of string
 
 let rec interpret env sigma goal constr =
   let red = whd_all env sigma constr in

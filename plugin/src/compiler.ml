@@ -489,7 +489,7 @@ type mtaclite =
   | Fix   of Nativevalues.t * Nativevalues.t * Nativevalues.t * Nativevalues.t * Nativevalues.t * Nativevalues.t
   | Fail  of Nativevalues.t * Nativevalues.t
   | Nu    of Nativevalues.t * Nativevalues.t * Nativevalues.t
-  | Evar  of Nativevalues.t
+  | Evar2  of Nativevalues.t
   | Try   of Nativevalues.t * Nativevalues.t * Nativevalues.t
 
 type coq_unit =
@@ -521,26 +521,26 @@ let unify sigma env evars t1 t2  : bool =
         List.length (find_pbs remaining evars) = 0
   with _ -> false
 
+open Monad
 
 let rec interpret env sigma (v : Nativevalues.t) ty = begin match (Obj.magic v : mtaclite) with
   | Print s ->
     let strty = EConstr.Unsafe.to_constr (Lazy.force CoqString.stringTy) in
     let normed = nf_val env sigma s strty in (* i can hardcode the string type here *)
     print env sigma (EConstr.of_constr normed);
-    Obj.magic (CoqUnit)
+    Val (env, sigma, Obj.magic CoqUnit)
 
-  | Ret (t, f) -> f
+  | Ret (t, f) -> Val (env, sigma, f)
   | Bind (ta, tb, a, b) ->
-    let ma = interpret env sigma a ty in
-    interpret env sigma ((Obj.magic b) ma) ty
+    interpret env sigma a ty >>= fun (_, _, ma) ->
+      interpret env sigma ((Obj.magic b) ma) ty
   | Unify (ta, a, b) -> (* how do we get the type here? do.a readback of ta with type Type ?? but whicch Type?? *)
 
     (* really we only need [ty] to get a reference to the Mtac constr, so we should be able to just use a constant ffi value instead *)
     let capp, ctyp = construct_of_constr_block env sigma (block_tag (Obj.magic v)) ty in
 
-    let _, tta, rest = decompose_prod env ctyp in
+    let _, tta, _ = decompose_prod env ctyp in
     let nta = nf_val env sigma ta tta in
-    let ty' = subst1 nta rest in
 
     let na = nf_val env sigma a nta in
     let nb = nf_val env sigma a nta in
@@ -549,10 +549,20 @@ let rec interpret env sigma (v : Nativevalues.t) ty = begin match (Obj.magic v :
 
     Feedback.msg_info (str "unification done") ;
     if unified
-    then  Obj.magic (CoqSome (Obj.magic EqRefl))
-    else  Obj.magic (CoqNone)
+    then  Val (env, sigma, Obj.magic (CoqSome (Obj.magic EqRefl)))
+    else  Val (env, sigma, Obj.magic (CoqNone))
+  | Fail (t, s) -> Err (env, sigma, s)
+  | Evar2 t ->    (* sketchy as SHIIIIIT *)
 
+    let capp, ctyp = construct_of_constr_block env sigma (block_tag (Obj.magic v)) ty in
+    let _, tta, _ = decompose_prod env ctyp in
+    let nta = nf_val env sigma t tta in
+    let (sigma', ev) = Evarutil.new_evar env sigma (EConstr.of_constr nta) in
+    let Evar (k, omg as a) = Constr.kind (EConstr.Unsafe.to_constr ev) in
+    let ev_accu = mk_evar_accu k [||] in
+      Val (env, sigma', ev_accu)
   end
+
 
 let compile env sigma goal constr =
   (* is this actually safe to do on all valid tactic terms? *)
@@ -571,7 +581,7 @@ let compile env sigma goal constr =
 
       Nativelib.call_linker ~fatal: true prefix fn (Some upd);
       Feedback.msg_info (str "starting interpretation");
-      let res = interpret env sigma !Nativelib.rt1 ty in
+      let Val (env', sigma', res) = interpret env sigma !Nativelib.rt1 ty in
 
       (* Readback of values is 'type-directed', it deconstructs the value's type as it builds up it's coq representation.
          We already know our return type is Mtac A, so we destruct it to get the A inside
@@ -582,7 +592,7 @@ let compile env sigma goal constr =
       (* Feedback.msg_info (Printer.pr_econstr (EConstr.of_constr arg)) ; *)
 
       (* do the actual readback *)
-      let (redback : constr) = nf_val env sigma res arg in
+      let (redback : constr) = nf_val env' sigma' res arg in
 
-      lazy (EConstr.of_constr (redback))
+      Val (env', sigma', lazy (EConstr.of_constr (redback)))
     | _ -> assert false
