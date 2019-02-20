@@ -29,6 +29,7 @@ module CoqAscii = struct
 end
 
 module CoqString = struct
+  let stringTy = lazy (find_constant ["Coq"; "Strings"; "String"] "string")
 
   let mkEmpty =  lazy (find_constant  ["Coq"; "Strings" ; "String"] "EmptyString")
   let mkString = lazy (find_constant ["Coq"; "Strings" ; "String"] "String")

@@ -465,42 +465,85 @@ let stop_profiler m_pid =
 
 open Coqffi
 open Pp
+
 let print env sigma cons = Feedback.msg_info (str (Printf.sprintf "MTACLITE: %s\n" (CoqString.from_coq env sigma cons))) ;()
 
+(*
+  When coq does native compilation, it creates a random module in a temporary folder. This means
+  we can't actually reference the compiled version of the Mtac inductive definition. To get around
+  this we exploit the fact that OCaml chooses to represent structurually isomorphic types the same way, down to the tags.
+  This means we can define an identical datatype and use Obj.magic to pass from our version to coq-native's version
+
+*)
 type mtaclite =
-  | Accu of Nativevalues.t (* ??? *)
+  | Accu  of Nativevalues.t (* ??? I don't fully understand the point of this Accu constructor... *)
   | Print of Nativevalues.t
-  | Ret of Nativevalues.t * Nativevalues.t
-  | Bind of Nativevalues.t * Nativevalues.t * Nativevalues.t * Nativevalues.t
+  | Ret   of Nativevalues.t * Nativevalues.t
+  | Bind  of Nativevalues.t * Nativevalues.t * Nativevalues.t * Nativevalues.t
   | Unify of Nativevalues.t * Nativevalues.t * Nativevalues.t
-  | Fix of Nativevalues.t * Nativevalues.t * Nativevalues.t * Nativevalues.t * Nativevalues.t * Nativevalues.t
-  | Fail of Nativevalues.t * Nativevalues.t
-  | Nu of Nativevalues.t * Nativevalues.t * Nativevalues.t
-  | Evar of Nativevalues.t
-  | Try of Nativevalues.t * Nativevalues.t * Nativevalues.t
+  | Fix   of Nativevalues.t * Nativevalues.t * Nativevalues.t * Nativevalues.t * Nativevalues.t * Nativevalues.t
+  | Fail  of Nativevalues.t * Nativevalues.t
+  | Nu    of Nativevalues.t * Nativevalues.t * Nativevalues.t
+  | Evar  of Nativevalues.t
+  | Try   of Nativevalues.t * Nativevalues.t * Nativevalues.t
 
 type ind_NTest_unit_0 =
   | Accu_NTest_unit_0 of Nativevalues.t
   | Construct_NTest_unit_0_0
 
+let find_pbs (sigma : Evd.evar_map) (evars : EConstr.constr list ) : Evd.evar_constraint list =
+    let (_, pbs) = Evd.extract_all_conv_pbs sigma in
+    List.filter (fun (_,_,c1,c2) ->
+      List.exists (fun e ->
+    (Termops.dependent sigma e (EConstr.of_constr c1)) || Termops.dependent sigma e (EConstr.of_constr c2)) evars) pbs
+
+(* unify : Evd.evar_map -> Environ.env -> EConstr.constr list -> Econstr -> Econstr -> bool *)
+let unify sigma env evars t1 t2  : bool =
+  try
+    (* it appears that the_conv_x is the way to actually run the coq unification engine *)
+    let unif_sigma = Evarconv.the_conv_x env t2 t1 sigma in
+    (* this apparently attempts to apply a bunch a heuristics ?  *)
+    let remaining  = Evarconv.consider_remaining_unif_problems env unif_sigma in
+        List.length (find_pbs remaining evars) = 0
+  with _ -> false
+
+
 let rec interpret env sigma (v : Nativevalues.t) ty = begin match (Obj.magic v : mtaclite) with
-  | Print s -> Feedback.msg_info (str "compiled code runs!!!");
-    let normed = nf_val env sigma v ty in (* i can hardcode the string type here *)
-    let _, [o] = decompose_app normed in
-    print env sigma (EConstr.of_constr o);
+  | Print s ->
+    let strty = EConstr.Unsafe.to_constr (Lazy.force CoqString.stringTy) in
+    let normed = nf_val env sigma s strty in (* i can hardcode the string type here *)
+    print env sigma (EConstr.of_constr normed);
     Obj.magic (Construct_NTest_unit_0_0)
 
-  | Ret (t, f) -> Feedback.msg_info (str "compiled ret") ;
-    f
-  | Bind (ta, tb, a, b) -> Feedback.msg_info (str "compiled bind") ;
+  | Ret (t, f) -> f
+  | Bind (ta, tb, a, b) ->
     let ma = interpret env sigma a ty in
-
-
     interpret env sigma ((Obj.magic b) ma) ty
+  | Unify (ta, a, b) -> (* how do we get the type here? do.a readback of ta with type Type ?? but whicch Type?? *)
+
+    (* really we only need [ty] to get a reference to the Mtac constr, so we should be able to just use a constant ffi value instead *)
+    let capp, ctyp = construct_of_constr_block env (block_tag (Obj.magic v)) ty in
+
+    let _, tta, rest = decompose_prod env ctyp in
+    let nta = nf_val env sigma ta tta in
+    let ty' = subst1 nta rest in
+
+    let na = nf_val env sigma a nta in
+    let nb = nf_val env sigma a nta in
+
+    let unified = unify sigma env [] (EConstr.of_constr na) (EConstr.of_constr nb) in
+
+    Feedback.msg_info (str "unification done") ;
+    if unified
+    then  Obj.magic (Construct_NTest_unit_0_0)
+    else  Obj.magic (Construct_NTest_unit_0_0)
+
   end
 
 let compile env sigma goal constr =
+  (* is this actually safe to do on all valid tactic terms? *)
   let c = EConstr.Unsafe.to_constr constr in
+
   let ctyp = Retyping.get_type_of env sigma constr in
   let ty = EConstr.Unsafe.to_constr ctyp in
   Feedback.msg_info (str "starting compilation");
@@ -515,10 +558,16 @@ let compile env sigma goal constr =
       Nativelib.call_linker ~fatal: true prefix fn (Some upd);
       Feedback.msg_info (str "starting interpretation");
       let res = interpret env sigma !Nativelib.rt1 ty in
+
+      (* Readback of values is 'type-directed', it deconstructs the value's type as it builds up it's coq representation.
+         We already know our return type is Mtac A, so we destruct it to get the A inside
+       *)
       let capp, ctyp = construct_of_constr_block env (block_tag (Obj.magic !Nativelib.rt1)) ty in
       let _, [arg] = decompose_app ty in
-      Feedback.msg_info (Printer.pr_econstr (EConstr.of_constr arg)) ;
 
+      (* Feedback.msg_info (Printer.pr_econstr (EConstr.of_constr arg)) ; *)
+
+      (* do the actual readback *)
       let (redback : constr) = nf_val env sigma res arg in
 
       lazy (EConstr.of_constr (redback))
