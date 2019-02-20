@@ -492,9 +492,18 @@ type mtaclite =
   | Evar  of Nativevalues.t
   | Try   of Nativevalues.t * Nativevalues.t * Nativevalues.t
 
-type ind_NTest_unit_0 =
-  | Accu_NTest_unit_0 of Nativevalues.t
-  | Construct_NTest_unit_0_0
+type coq_unit =
+  | AccuUnit of Nativevalues.t
+  | CoqUnit
+
+type coq_option =
+  | AccuOption of Nativevalues.t
+  | CoqSome of Nativevalues.t
+  | CoqNone
+
+type coq_eq =
+  | AccuEq of Nativevalues.t
+  | EqRefl
 
 let find_pbs (sigma : Evd.evar_map) (evars : EConstr.constr list ) : Evd.evar_constraint list =
     let (_, pbs) = Evd.extract_all_conv_pbs sigma in
@@ -518,7 +527,7 @@ let rec interpret env sigma (v : Nativevalues.t) ty = begin match (Obj.magic v :
     let strty = EConstr.Unsafe.to_constr (Lazy.force CoqString.stringTy) in
     let normed = nf_val env sigma s strty in (* i can hardcode the string type here *)
     print env sigma (EConstr.of_constr normed);
-    Obj.magic (Construct_NTest_unit_0_0)
+    Obj.magic (CoqUnit)
 
   | Ret (t, f) -> f
   | Bind (ta, tb, a, b) ->
@@ -540,8 +549,8 @@ let rec interpret env sigma (v : Nativevalues.t) ty = begin match (Obj.magic v :
 
     Feedback.msg_info (str "unification done") ;
     if unified
-    then  Obj.magic (Construct_NTest_unit_0_0)
-    else  Obj.magic (Construct_NTest_unit_0_0)
+    then  Obj.magic (CoqSome (Obj.magic EqRefl))
+    else  Obj.magic (CoqNone)
 
   end
 

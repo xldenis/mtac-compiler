@@ -30,14 +30,13 @@ Proof.
   compile (ret 1) as t2.
   compile (bind (ret 2) (fun x => ret x)) as t3.
   compile (unify tt tt) as t4.
-
 Admitted.
 
 Goal True.
 Proof.
   run (MtacLite.print "omg") as omg.
   run (MtacLite.unify False True) as omg2.
-  (*run (tauto_simpl true) as om22.*)
+  run (tauto_simpl true) as om22.
   pose (@eq_refl _ (~ False)).
   unfold not in e.
   simpl in e.
