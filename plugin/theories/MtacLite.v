@@ -3,7 +3,7 @@ Require Import Strings.String.
 
 Module MtacLite.
 
-Inductive Mtac : Type -> Type :=
+Inductive Mtac : Type -> Prop :=
   | print : string -> Mtac unit
   | ret   : forall {A}, A -> Mtac A
   | bind  : forall {A B}, Mtac A -> (A -> Mtac B) -> Mtac B
@@ -29,6 +29,12 @@ Module MtacLiteNotations.
     (at level 81, right associativity).
   Notation "t1 ';;' t2" := (@bind _ _ t1 (fun _=>t2))
     (at level 81, right associativity).
+
+  Notation "'mfix' f ( x : A ) : 'M' T := b" :=
+    (@fix' A (fun x => T) Mtac (fun a (x : Mtac a) => x) (fun f x => b))
+    (at level 85, f at level 0, x at next level, format
+    "'[v  ' 'mfix'  f  '(' x  ':'  A ')'  ':'  'M'  T  ':=' '/  ' b ']'").
+
 End MtacLiteNotations.
 
 Declare ML Module "mtaclite".

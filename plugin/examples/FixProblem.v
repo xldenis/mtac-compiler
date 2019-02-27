@@ -15,7 +15,7 @@ Inductive Mtac : Type -> Prop :=
   | try : forall {A}, Mtac A -> Mtac A -> Mtac A
   .
 
-Notation "'mfix' f ( x : A ) : 'M' T := b" := 
+Notation "'mfix' f ( x : A ) : 'M' T := b" :=
   (@fix' A (fun x => T) Mtac (fun a (x : Mtac a) => x) (fun f x => b))
   (at level 85, f at level 0, x at next level, format
   "'[v  ' 'mfix'  f  '(' x  ':'  A ')'  ':'  'M'  T  ':=' '/  ' b ']'").
@@ -24,9 +24,9 @@ Definition simpl_prop_auto :=
 (*
   @fix' Prop (fun p => p) Mtac (fun a (x : Mtac a) => x) (fun f p => fail "omg").
 
-Check simpl_prop_auto.
 
 *)
   mfix f (p : Prop) : M p := (* problem is here*)
     fail "omg"
   .
+Check simpl_prop_auto.
