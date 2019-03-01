@@ -31,7 +31,7 @@ Module MtacLiteNotations.
     (at level 81, right associativity).
 
   Notation "'mfix' f ( x : A ) : 'M' T := b" :=
-    (@fix' A (fun x => T) Mtac (fun a (x : Mtac a) => x) (fun f x => b))
+    (@fix' A (fun x => T) Mtac (fun _ (x : Mtac _) => x) (fun f (x : A) => b))
     (at level 85, f at level 0, x at next level, format
     "'[v  ' 'mfix'  f  '(' x  ':'  A ')'  ':'  'M'  T  ':=' '/  ' b ']'").
 

@@ -37,7 +37,14 @@ Proof.
   compile (@evar nat) as t1.
   run (@evar nat) as r1.
   compile (ret t1) as c.
-Qed.
+Admitted.
+
+Lemma unify_vars : True.
+Proof.
+  run (@evar Prop) as e1.
+  run (@evar Prop) as e2.
+  run (unify (True \/ False) (e1 \/ e2)) as t1.
+Admitted.
 
 Goal True.
 Proof.

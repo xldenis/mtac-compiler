@@ -20,6 +20,19 @@ let print env sigma cons = Feedback.msg_info (str (Printf.sprintf "MTACLITE: %s\
 open MtacTerm
 
 exception Omg of string
+(*
+and run_fix (env, renv, sigma, _, _ as ctxt) h a b s i f x =
+  let fixf = mkApp(h, Array.append a [|b;s;i;f|]) in
+  let c = mkApp (f, Array.append [| fixf|] x) in
+  run' ctxt c
+
+let a, b, s, i, f, x = nth 0, nth 1, nth 2, nth 3, nth 4, nth 5 in
+  run_fix ctxt
+
+  run_fix ctxt h [|a|] b s i f [|x|]
+
+  and run_fix (env, renv, sigma, _, _ as ctxt) h [|a|] b s i f [|x|]
+ *)
 
 let rec interpret env sigma goal constr =
   let red = whd_all env sigma constr in
@@ -33,12 +46,17 @@ let rec interpret env sigma goal constr =
       let a_red = whd_all env sigma a in
       let b_red = whd_all env sigma b in
       let unified = unify sigma env [] a_red b_red in
-      if unified then
+      Feedback.msg_info (Printer.pr_econstr ( a_red)) ;
+      Feedback.msg_info (Printer.pr_econstr ( b_red)) ;
+
+      begin match unified with
+      | (true, sigma') ->
         let o = CoqOption.mkSome (CoqEq.mkAppEq t a b) (CoqEq.mkAppEqRefl t a) in
-        Val (env, sigma, lazy o)
-      else
-       let o = CoqOption.mkNothing (CoqEq.mkAppEq t a b)in
-        Val (env, sigma, lazy o)
+        Val (env, sigma', lazy o)
+      | (false, sigma') ->
+       let o = CoqOption.mkNothing (CoqEq.mkAppEq t a b) in
+        Val (env, sigma', lazy o)
+      end
     | [_; _; a; b] when eq_constr sigma hs (Lazy.force mtacBind)  ->
       interpret env sigma goal a >>= fun (env', sigma', a') ->
         let t' = mkApp(b, [| Lazy.force a'|]) in
@@ -47,8 +65,18 @@ let rec interpret env sigma goal constr =
     | [_; a]    when eq_constr sigma hs (Lazy.force mtacRet)  -> Val (env, sigma, lazy a)
     | [_; a]    when eq_constr sigma hs (Lazy.force mtacRaise) -> Err (env, sigma, lazy a)
     | [a; b; s; i; f; x] when eq_constr sigma hs (Lazy.force mtacFix) ->
-        let fix_iter = mkApp(hs, [|a; b; s; i; f; x|]) in
+        let fixf = mkApp(hs, [|a; b;s;i;f|]) in
+        let c = mkApp (f, [|fixf; x|]) in
+
+(*         let open Proofview_monad in
+        let open Proof in
+        let omg = Proofview_monad.tclBIND Comb.get (fun comb -> return (CList.length comb)) in
+ *)         (* Feedback.msg_info (Printer.pr_econstr (x)) ; *)
+         (* Feedback.msg_info (Printer.pr_econstr (f)) ; *)
+
+        (* let fix_iter = mkApp(hs, [|a; b; s; i; f|]) in
         let c = mkApp(f, [|fix_iter; x|]) in
+         *)
         interpret env sigma goal c
     | [a; _; f] when eq_constr sigma hs (Lazy.force mtacNu) ->
         let fx  = mkApp(Vars.lift 1 f, [|mkRel 1|]) in (* wtf is mkRel? *)

@@ -12,11 +12,11 @@ let find_pbs (sigma : Evd.evar_map) (evars : EConstr.constr list ) : Evd.evar_co
     (Termops.dependent sigma e c1) || Termops.dependent sigma e c2) evars) pbs
 
 (* unify : Evd.evar_map -> Environ.env -> EConstr.constr list -> Econstr -> Econstr -> bool *)
-let unify sigma env evars t1 t2  : bool =
+let unify sigma env evars t1 t2  : bool * Evd.evar_map =
   try
     (* it appears that the_conv_x is the way to actually run the coq unification engine *)
     let unif_sigma = Evarconv.the_conv_x env t2 t1 sigma in
     (* this apparently attempts to apply a bunch a heuristics ?  *)
     let remaining  = Evarconv.consider_remaining_unif_problems env unif_sigma in
-        List.length (find_pbs remaining evars) = 0
-  with _ -> false
+    (List.length (find_pbs remaining evars) = 0, unif_sigma)
+  with _ -> (false, sigma)
