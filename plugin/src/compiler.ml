@@ -511,19 +511,31 @@ let find_pbs (sigma : Evd.evar_map) (evars : EConstr.constr list ) : Evd.evar_co
       List.exists (fun e ->
     (Termops.dependent sigma e ( c1)) || Termops.dependent sigma e ( c2)) evars) pbs
 
-(* unify : Evd.evar_map -> Environ.env -> EConstr.constr list -> Econstr -> Econstr -> bool *)
-let unify sigma env evars t1 t2  : bool =
-  try
-    (* it appears that the_conv_x is the way to actually run the coq unification engine *)
-    let unif_sigma = Evarconv.the_conv_x env t2 t1 sigma in
-    (* this apparently attempts to apply a bunch a heuristics ?  *)
-    let remaining  = Evarconv.consider_remaining_unif_problems env unif_sigma in
-        List.length (find_pbs remaining evars) = 0
-  with _ -> false
-
 open Monad
+open Coqffi
 
-let rec interpret env sigma (v : Nativevalues.t) ty = begin match (Obj.magic v : mtaclite) with
+let str_of_mtaclite v = match v with
+  | Print _ -> "print"
+  | Ret _ -> "ret"
+  | Bind _ -> "bind"
+  | Unify _ -> "unify"
+  | Fail _ -> "fail"
+  | Evar2 _ -> "evar"
+  | Try _ -> "try"
+  | Nu _ -> "nu"
+  | Fix _ -> "fix"
+
+let print_constr arg = Feedback.msg_info (Printer.pr_econstr (EConstr.of_constr arg))
+
+let type_univ_of_constr env sigma v : types =
+  let mtac  = EConstr.Unsafe.to_constr(Lazy.force MtacTerm.mtacMtac) in
+  let _, ctyp = construct_of_constr_block env sigma (block_tag (Obj.magic v)) mtac in
+  let _, tta, _ = decompose_prod env ctyp in
+  tta
+
+let rec interpret env sigma (v : Nativevalues.t) =
+  intrepret' env sigma v
+and intrepret' env sigma v = begin match (Obj.magic v : mtaclite) with
   | Print s ->
     let strty = EConstr.Unsafe.to_constr (Lazy.force CoqString.stringTy) in
     let normed = nf_val env sigma s strty in (* i can hardcode the string type here *)
@@ -532,39 +544,49 @@ let rec interpret env sigma (v : Nativevalues.t) ty = begin match (Obj.magic v :
 
   | Ret (t, f) -> Val (env, sigma, f)
   | Bind (ta, tb, a, b) ->
-    interpret env sigma a ty >>= fun (_, _, ma) ->
-      interpret env sigma ((Obj.magic b) ma) ty
+    interpret env sigma a >>= fun (e, s, ma) ->
+      interpret e s ((Obj.magic b) ma)
   | Unify (ta, a, b) -> (* how do we get the type here? do.a readback of ta with type Type ?? but whicch Type?? *)
-
-    (* really we only need [ty] to get a reference to the Mtac constr, so we should be able to just use a constant ffi value instead *)
-    let capp, ctyp = construct_of_constr_block env sigma (block_tag (Obj.magic v)) ty in
-
-    let _, tta, _ = decompose_prod env ctyp in
+    let tta = type_univ_of_constr env sigma v in
     let nta = nf_val env sigma ta tta in
-
     let na = nf_val env sigma a nta in
-    let nb = nf_val env sigma a nta in
+    let nb = nf_val env sigma b nta in
 
-    let unified = unify sigma env [] (EConstr.of_constr na) (EConstr.of_constr nb) in
+    let unified = Unify.unify sigma env [] (EConstr.of_constr na) (EConstr.of_constr nb) in
 
-    Feedback.msg_info (str "unification done") ;
-    if unified
-    then  Val (env, sigma, Obj.magic (CoqSome (Obj.magic EqRefl)))
-    else  Val (env, sigma, Obj.magic (CoqNone))
+    begin match unified with
+    | (true, sigma') ->   Val (env, sigma', Obj.magic (CoqSome (Obj.magic EqRefl)))
+    | (false, sigma') ->  Val (env, sigma', Obj.magic (CoqNone))
+    end
   | Fail (t, s) -> Err (env, sigma, s)
   | Evar2 t ->    (* sketchy as SHIIIIIT *)
-
-    let capp, ctyp = construct_of_constr_block env sigma (block_tag (Obj.magic v)) ty in
-    let _, tta, _ = decompose_prod env ctyp in
+    let tta = type_univ_of_constr env sigma v in
     let nta = nf_val env sigma t tta in
     let (sigma', ev) = Evarutil.new_evar env sigma (EConstr.of_constr nta) in
-    let Evar (k, omg as a) = Constr.kind (EConstr.Unsafe.to_constr ev) in
+    let Evar (k, _) = Constr.kind (EConstr.Unsafe.to_constr ev) in
     let ev_accu = mk_evar_accu k [||] in
       Val (env, sigma', ev_accu)
+  | Try (t, fst, snd) -> begin match (interpret env sigma fst) with
+    | Val (env', sigma', v) -> Val (env', sigma', v)
+    | Err (_, _, _) -> interpret env sigma snd
+    end
+  | Nu (a, b, func) ->
+    let tta = type_univ_of_constr env sigma v in(* this is all to extract Type... because of universe problems *)
+    let ta = nf_val env sigma  a tta in
+    let (sigma', ev) = Evarutil.new_evar env sigma (EConstr.of_constr ta) in
+    let Evar (k, _) = Constr.kind (EConstr.Unsafe.to_constr ev) in
+    let ev_accu = mk_evar_accu k [||] in
+
+    interpret env sigma ((Obj.magic func) ev_accu)
+  | Fix (a, b, s, i, f, x) ->
+    let fixf = (fun x ->
+      Obj.magic (Fix (a, b, s, i, f, x)) : Nativevalues.t) in
+    let iter = (Obj.magic f) (Obj.magic fixf) x in
+
+    interpret env sigma iter
   end
 
-
-let compile env sigma goal constr =
+let compile env sigma _ constr =
   (* is this actually safe to do on all valid tactic terms? *)
   let c = EConstr.Unsafe.to_constr constr in
 
@@ -581,18 +603,22 @@ let compile env sigma goal constr =
 
       Nativelib.call_linker ~fatal: true prefix fn (Some upd);
       Feedback.msg_info (str "starting interpretation");
-      let Val (env', sigma', res) = interpret env sigma !Nativelib.rt1 ty in
+
+      let Val (env', sigma', res) = interpret env sigma !Nativelib.rt1 in
+      Feedback.msg_info (str "done interpretation");
 
       (* Readback of values is 'type-directed', it deconstructs the value's type as it builds up it's coq representation.
          We already know our return type is Mtac A, so we destruct it to get the A inside
        *)
-      let capp, ctyp = construct_of_constr_block env sigma (block_tag (Obj.magic !Nativelib.rt1)) ty in
       let _, [arg] = decompose_app ty in
+      (* print_constr arg; *)
+      let red = whd_all env' arg in
+      (* print_constr red; *)
 
       (* Feedback.msg_info (Printer.pr_econstr (EConstr.of_constr arg)) ; *)
 
       (* do the actual readback *)
-      let (redback : constr) = nf_val env' sigma' res arg in
+      let (redback : constr) = nf_val env' sigma' res red in
 
       Val (env', sigma', lazy (EConstr.of_constr (redback)))
     | _ -> assert false

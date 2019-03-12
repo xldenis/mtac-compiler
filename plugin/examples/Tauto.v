@@ -35,11 +35,11 @@ Definition simple_tauto :=
           try (
             r1 <- f x;
 
-            @eq_rect Prop (x \/ y) Mtac (ret (or_introl r1)) p prf
+            @eq_rect Prop (x \/ y) Mtac (ret (@or_introl x y r1)) p prf
           ) (
             r2 <- f y;
 
-            @eq_rect Prop (x \/ y) Mtac (ret (or_intror r2)) p prf
+            @eq_rect Prop (x \/ y) Mtac (ret (@or_intror x y r2)) p prf
           )
          | Nothing => fail "Not Found"
         end
@@ -49,46 +49,47 @@ Definition simple_tauto :=
 
 Check simple_tauto.
 
-Definition is_or :=
-  mfix f (p : Prop) : M p :=
-    x <- evar;
-    y <- evar;
-
-    eq <- unify (x \/ y) p;
-
-    match eq with
-    | Some prf =>
-      try (
-        r1 <- f x;
-
-        @eq_rect Prop (x \/ y) Mtac (ret (or_introl r1)) p prf
-      ) (
-        r2 <- f y;
-
-        @eq_rect Prop (x \/ y) Mtac (ret (or_intror r2)) p prf
-      )
-    | Nothing =>
-      eq <- unify True p;
-      match eq with
-      | Some prf => @eq_rect Prop True Mtac (ret I) p prf
-      | None => fail "Not found"
-      end
+Definition simple_fix :=
+  mfix f (p : nat) : M True :=
+    match p with
+    | 0 => ret I
+    | n => f (n - 1) ;; f (n - 1)
     end
   .
 
 
-Goal True \/ False.
+Example fix_ex : True.
 Proof.
-  run (is_or (True \/ (True \/ False))).
+  compile (simple_fix 2) as v.
+  exact v.
 Qed.
+
+(*   run (is_or (True \/ (True \/ False))). *)
+(* Qed. *)
 
 Example ex0 : True \/ False.
 Proof.
   run (simple_tauto (True \/ False)).
+  all: (exact True).
 Qed.
 
-Example ex1 : True /\ (False \/ True).
+Example ex1 : True.
+  run (simple_tauto True) as v.
+  exact v.
+Qed.
+Example ex2 : True /\ True.
 Proof.
-  run (simple_tauto (True /\ (False \/ True))).
+  compile (simple_tauto (True /\ True)) as v.
+  exact v.
+  Unshelve.
+  all: exact True.
+Qed.
+
+Example ex3 : True /\ (False \/ True).
+Proof.
+  compile (simple_tauto (True /\ (False \/ True))) as v.
+  exact v.
+  Unshelve.
+  all: (exact True).
 Qed.
 
