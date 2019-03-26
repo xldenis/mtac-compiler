@@ -16,9 +16,9 @@ Inductive Mtac : Type -> Prop :=
   | nu : forall {A B}, (A -> Mtac B) -> Mtac B (*idk if we actually need nu*)
   | evar : forall {A}, Mtac A
   | try : forall {A}, Mtac A -> Mtac A -> Mtac A
+  | abs : forall {A P} (x : A), P x -> Mtac Type
   .
 
-(*Definition tactic (A : Type) := goal gs_base -> Mtac (list (prod A (goal gs_any))).*)
 End MtacLite.
 
 Export MtacLite.

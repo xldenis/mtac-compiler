@@ -20,19 +20,78 @@ let print env sigma cons = Feedback.msg_info (str (Printf.sprintf "MTACLITE: %s\
 open MtacTerm
 
 exception Omg of string
-(*
-and run_fix (env, renv, sigma, _, _ as ctxt) h a b s i f x =
-  let fixf = mkApp(h, Array.append a [|b;s;i;f|]) in
-  let c = mkApp (f, Array.append [| fixf|] x) in
-  run' ctxt c
 
-let a, b, s, i, f, x = nth 0, nth 1, nth 2, nth 3, nth 4, nth 5 in
-  run_fix ctxt
+(* checks that no variable in env to the right of i (that is, smaller
+   to i) depends on i. *)
+let noccurn_env env sigma i =
+  let rec noc n =
+    if n = 1 then true
+    else
+      match Environ.lookup_rel (i-n+1) env with
+      | LocalAssum (nm, t) -> Vars.noccurn sigma (n-1) (EConstr.of_constr t)
+      | LocalDef   (nm, a, t) ->
+        Vars.noccurn sigma (n-1) (EConstr.of_constr a)
+        && Vars.noccurn sigma (n-1) (EConstr.of_constr t)
+        && noc (n-1)
+  in noc i
 
-  run_fix ctxt h [|a|] b s i f [|x|]
+let name_occurn_env env n =
+  let ids = Environ.fold_named_context_reverse
+    (fun s decl -> match decl with
+        | LocalAssum (n', _) -> Id.Set.add n' s
+        | LocalDef (n', _, _) -> Id.Set.add n' s
+    )
+    ~init:Id.Set.empty env in (* compute set of ids in env *)
+  let ids = Id.Set.remove n ids in (* remove n *)
+  let ids = Environ.really_needed env ids in (* and compute closure of ids *)
+  Id.Set.mem n ids (* to finally check if n is in it *)
 
-  and run_fix (env, renv, sigma, _, _ as ctxt) h [|a|] b s i f [|x|]
- *)
+open Term
+let mysubstn sigma t n c =
+  let rec substrec in_arr depth c = begin match kind sigma c with
+    | Constr.Rel k    ->
+        if k<=depth then c
+        else if k = depth+n then
+          Vars.lift depth t
+        else mkRel (k+1)
+    | _ -> map_with_binders sigma succ (substrec in_arr) depth c 
+  end in 
+  substrec false 0 c
+
+let abs ?(mkprod=false) (env, sigma) a p x y =
+  let x = whd_all env sigma x in
+    (* check if the type p does not depend of x, and that no variable
+       created after x depends on it.  otherwise, we will have to
+       substitute the context, which is impossible *)
+  if isRel sigma x then
+    let rel = destRel sigma x in
+    if Vars.noccurn sigma rel p then
+      if noccurn_env env sigma rel then
+        try
+          let y' = mysubstn sigma (mkRel 1) rel y in
+          if mkprod
+          then mkProd   (Names.Anonymous, a, y')
+          else mkLambda (Names.Anonymous, a, y')
+        with _ ->
+          Loc.raise (Omg "abstract ref error??")
+      else
+        Loc.raise (Omg "error_abs_env")
+    else
+      Loc.raise (Omg "error_abs_type")
+  else if isVar sigma x then
+    let name = destVar sigma x in
+    if not (Termops.occur_var env sigma name p) then
+      if not (name_occurn_env env name) then
+        let y' = Vars.subst_vars [name] y in
+        if mkprod
+        then mkProd   (Name name, a, y')
+        else mkLambda (Name name, a, y')
+      else
+        Loc.raise (Omg "error_abs_env")
+    else
+      Loc.raise (Omg "error_abs_type")
+  else
+    Loc.raise (Omg "error_abs")
 
 let rec interpret env sigma goal constr =
   let red = whd_all env sigma constr in
@@ -105,5 +164,8 @@ let rec interpret env sigma goal constr =
         | Val (a, b, c) -> Val (a, b, c)
         | Err(_, _, _) -> interpret env sigma goal r
         end
+    | [a; p; x; y] when eq_constr sigma hs (Lazy.force mtacAbs) ->
+        let v = abs ~mkprod:true (env, sigma) a p x y in
+        Val (env, sigma, lazy v)
     | _ -> Feedback.msg_info (str (Printf.sprintf "%d" (List.length args)));
         Val (env, sigma, lazy constr)
