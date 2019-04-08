@@ -24,6 +24,13 @@ Notation "'mfix' f ( x : A ) : 'M' T := b" := (fix' (fun x=>T) (fun f (x : A)=>b
   (at level 85, f at level 0, x at next level, format
   "'[v  ' 'mfix'  f  '(' x  ':'  A ')'  ':'  'M'  T  ':=' '/  ' b ']'").
 
+
+Goal True.
+Proof.
+  run (nu (fun (x : Prop) => abs x (ret x))) as x.
+  compile (nu (fun (x : Prop) => abs x (ret x))) as x2.
+Admitted.
+
 Goal True.
 Proof.
   compile (print "gmo") as t1.
@@ -46,6 +53,9 @@ Proof.
   run (unify (True \/ False) (e1 \/ e2)) as t1.
 Admitted.
 
+Lemma test_evar_unify : True.
+  run (x <- @evar Prop ; ret (fun y => unify x y ;; ret y)) as t.
+  compile (nu (fun (x : Prop) => abs x (ret x))) as o.
 Goal True.
 Proof.
   run (MtacLite.print "omg") as omg.

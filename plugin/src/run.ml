@@ -54,12 +54,21 @@ let mysubstn sigma t n c =
         else if k = depth+n then
           Vars.lift depth t
         else mkRel (k+1)
-    | _ -> map_with_binders sigma succ (substrec in_arr) depth c 
-  end in 
+    | _ -> map_with_binders sigma succ (substrec in_arr) depth c
+  end in
   substrec false 0 c
+
+
+let subst_evar sigma var res term =
+  let rec substrec depth term = begin match kind sigma term with
+    | e when eq_constr sigma (of_kind e) var -> res
+    | _ -> map_with_binders sigma succ (substrec) depth term
+  end in
+  substrec 0 term
 
 let abs ?(mkprod=false) (env, sigma) a p x y =
   let x = whd_all env sigma x in
+
     (* check if the type p does not depend of x, and that no variable
        created after x depends on it.  otherwise, we will have to
        substitute the context, which is impossible *)
@@ -126,16 +135,6 @@ let rec interpret env sigma goal constr =
     | [a; b; s; i; f; x] when eq_constr sigma hs (Lazy.force mtacFix) ->
         let fixf = mkApp(hs, [|a; b;s;i;f|]) in
         let c = mkApp (f, [|fixf; x|]) in
-
-(*         let open Proofview_monad in
-        let open Proof in
-        let omg = Proofview_monad.tclBIND Comb.get (fun comb -> return (CList.length comb)) in
- *)         (* Feedback.msg_info (Printer.pr_econstr (x)) ; *)
-         (* Feedback.msg_info (Printer.pr_econstr (f)) ; *)
-
-        (* let fix_iter = mkApp(hs, [|a; b; s; i; f|]) in
-        let c = mkApp(f, [|fix_iter; x|]) in
-         *)
         interpret env sigma goal c
     | [a; _; f] when eq_constr sigma hs (Lazy.force mtacNu) ->
         let fx  = mkApp(Vars.lift 1 f, [|mkRel 1|]) in (* wtf is mkRel? *)
@@ -165,7 +164,8 @@ let rec interpret env sigma goal constr =
         | Err(_, _, _) -> interpret env sigma goal r
         end
     | [a; p; x; y] when eq_constr sigma hs (Lazy.force mtacAbs) ->
-        let v = abs ~mkprod:true (env, sigma) a p x y in
+        let v = abs (env, sigma) a p x y in
+
         Val (env, sigma, lazy v)
     | _ -> Feedback.msg_info (str (Printf.sprintf "%d" (List.length args)));
         Val (env, sigma, lazy constr)

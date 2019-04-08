@@ -16,7 +16,7 @@ Inductive Mtac : Type -> Prop :=
   | nu : forall {A B}, (A -> Mtac B) -> Mtac B (*idk if we actually need nu*)
   | evar : forall {A}, Mtac A
   | try : forall {A}, Mtac A -> Mtac A -> Mtac A
-  | abs : forall {A P} (x : A), P x -> Mtac Type
+  | abs : forall {A P} (x : A), P x -> Mtac (forall x, P x)
   .
 
 End MtacLite.

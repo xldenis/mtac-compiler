@@ -489,8 +489,9 @@ type mtaclite =
   | Fix   of Nativevalues.t * Nativevalues.t * Nativevalues.t * Nativevalues.t * Nativevalues.t * Nativevalues.t
   | Fail  of Nativevalues.t * Nativevalues.t
   | Nu    of Nativevalues.t * Nativevalues.t * Nativevalues.t
-  | Evar2  of Nativevalues.t
+  | Evar2 of Nativevalues.t
   | Try   of Nativevalues.t * Nativevalues.t * Nativevalues.t
+  | Abs   of Nativevalues.t * Nativevalues.t * Nativevalues.t * Nativevalues.t
 
 type coq_unit =
   | AccuUnit of Nativevalues.t
@@ -577,13 +578,35 @@ and intrepret' env sigma v = begin match (Obj.magic v : mtaclite) with
     let Evar (k, _) = Constr.kind (EConstr.Unsafe.to_constr ev) in
     let ev_accu = mk_evar_accu k [||] in
 
-    interpret env sigma ((Obj.magic func) ev_accu)
+    interpret env sigma' ((Obj.magic func) ev_accu)
   | Fix (a, b, s, i, f, x) ->
     let fixf = (fun x ->
       Obj.magic (Fix (a, b, s, i, f, x)) : Nativevalues.t) in
     let iter = (Obj.magic f) (Obj.magic fixf) x in
 
     interpret env sigma iter
+  | Abs (a, p, x, px) ->
+      let tta = type_univ_of_constr env sigma v in(* this is all to extract Type... because of universe problems *)
+      let na = nf_val env sigma a tta in
+      (* need to make a A -> Type fun !!! *)
+      let np = nf_val env sigma p (mkArrow na tta) in
+      let nx = nf_val env sigma x na in
+      let tpx = nf_val env sigma px (mkApp (np, [| nx |])) in
+
+      (* need to lift variables in side tpx *)
+      let v = Run.subst_evar sigma (EConstr.of_constr nx) (EConstr.mkRel 1) (EConstr.Vars.lift 1 (EConstr.of_constr tpx)) in
+      let abs_lambda = EConstr.mkLambda (Names.Anonymous, EConstr.of_constr na, v) in
+
+      let c = EConstr.Unsafe.to_constr abs_lambda in
+      let ml_filename, prefix = Nativelib.get_ml_filename () in
+      let code, upd = mk_norm_code (env) (evars_of_evar_map sigma) prefix c in
+
+      begin match Nativelib.compile ml_filename code ~profile:false with
+        | true, fn ->
+          Nativelib.call_linker ~fatal:true prefix fn (Some upd);
+          Val (env, sigma, !Nativelib.rt1)
+        | _ -> assert false
+      end
   end
 
 let compile env sigma _ constr =
