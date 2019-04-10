@@ -136,6 +136,11 @@ let rec interpret env sigma goal constr =
         let fixf = mkApp(hs, [|a; b;s;i;f|]) in
         let c = mkApp (f, [|fixf; x|]) in
         interpret env sigma goal c
+    | [a1; a2; b; s; i; f; x; y] when eq_constr sigma hs (Lazy.force mtacFix2) ->
+        let fixf = mkApp(hs, [|a1; a2; b;s;i;f|]) in
+        let c = mkApp (f, [|fixf; x; y|]) in
+        interpret env sigma goal c
+
     | [a; _; f] when eq_constr sigma hs (Lazy.force mtacNu) ->
         let fx  = mkApp(Vars.lift 1 f, [|mkRel 1|]) in (* wtf is mkRel? *)
         let env = push_rel (LocalAssum (Anonymous, a)) env in

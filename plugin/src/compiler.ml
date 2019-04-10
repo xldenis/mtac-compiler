@@ -487,6 +487,7 @@ type mtaclite =
   | Bind  of Nativevalues.t * Nativevalues.t * Nativevalues.t * Nativevalues.t
   | Unify of Nativevalues.t * Nativevalues.t * Nativevalues.t
   | Fix   of Nativevalues.t * Nativevalues.t * Nativevalues.t * Nativevalues.t * Nativevalues.t * Nativevalues.t
+  | Fix2  of Nativevalues.t * Nativevalues.t * Nativevalues.t * Nativevalues.t * Nativevalues.t * Nativevalues.t * Nativevalues.t * Nativevalues.t
   | Fail  of Nativevalues.t * Nativevalues.t
   | Nu    of Nativevalues.t * Nativevalues.t * Nativevalues.t
   | Evar2 of Nativevalues.t
@@ -583,6 +584,12 @@ and intrepret' env sigma v = begin match (Obj.magic v : mtaclite) with
     let fixf = (fun x ->
       Obj.magic (Fix (a, b, s, i, f, x)) : Nativevalues.t) in
     let iter = (Obj.magic f) (Obj.magic fixf) x in
+
+    interpret env sigma iter
+  | Fix2 (a1, a2, b, s, i, f, x, y) ->
+    let fixf = (fun x y ->
+      Obj.magic (Fix2 (a1, a2, b, s, i, f, x, y)) : Nativevalues.t) in
+    let iter = (Obj.magic f) (Obj.magic fixf) x y in
 
     interpret env sigma iter
   | Abs (a, p, x, px) ->

@@ -76,6 +76,7 @@ module MtacTerm = struct
   let mtacRet   = lazy (find_constant path "ret"  )
   let mtacUnify = lazy (find_constant path "unify")
   let mtacFix   = lazy (find_constant path "fix'" )
+  let mtacFix2  = lazy (find_constant path "fix2'")
   let mtacRaise = lazy (find_constant path "fail" )
   let mtacNu    = lazy (find_constant path "nu"   )
   let mtacEvar  = lazy (find_constant path "evar" )
