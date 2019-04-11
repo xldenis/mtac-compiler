@@ -194,6 +194,13 @@ Proof.
   all: easy.
 Qed.
 
+Example ex1 {A B C D : Prop}: (A -> A) /\ (B -> B) \/ (A -> B -> C -> D -> (C \/ D) /\ (A \/ B /\ (C -> D))).
+  match goal with
+  | |- ?g => compile (simple_tauto g []) as v; exact v
+  end.
+Qed.
+
+
 Ex(*ample complex {F G : Prop -> Prop}:
   exists y z, forall x, ((F x -> G y) /\ (G z -> F x)) -> forall x, exists y, (F x -> G y /\ G y -> F x).
 Proof.

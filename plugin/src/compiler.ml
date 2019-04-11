@@ -535,19 +535,19 @@ let type_univ_of_constr env sigma v : types =
   let _, tta, _ = decompose_prod env ctyp in
   tta
 
-let rec interpret env sigma (v : Nativevalues.t) =
-  intrepret' env sigma v
-and intrepret' env sigma v = begin match (Obj.magic v : mtaclite) with
+let rec interpret istate env sigma (v : Nativevalues.t) =
+  intrepret' istate env sigma v
+and intrepret' istate env sigma v = begin match (Obj.magic v : mtaclite) with
   | Print s ->
     let strty = EConstr.Unsafe.to_constr (Lazy.force CoqString.stringTy) in
     let normed = nf_val env sigma s strty in (* i can hardcode the string type here *)
     print env sigma (EConstr.of_constr normed);
-    Val (env, sigma, Obj.magic CoqUnit)
+    Val (istate, env, sigma, Obj.magic CoqUnit)
 
-  | Ret (t, f) -> Val (env, sigma, f)
+  | Ret (t, f) -> Val (istate, env, sigma, f)
   | Bind (ta, tb, a, b) ->
-    interpret env sigma a >>= fun (e, s, ma) ->
-      interpret e s ((Obj.magic b) ma)
+    interpret istate env sigma a >>= fun (istate, e, s, ma) ->
+      interpret istate e s ((Obj.magic b) ma)
   | Unify (ta, a, b) -> (* how do we get the type here? do.a readback of ta with type Type ?? but whicch Type?? *)
     let tta = type_univ_of_constr env sigma v in
     let nta = nf_val env sigma ta tta in
@@ -557,41 +557,54 @@ and intrepret' env sigma v = begin match (Obj.magic v : mtaclite) with
     let unified = Unify.unify sigma env [] (EConstr.of_constr na) (EConstr.of_constr nb) in
 
     begin match unified with
-    | (true, sigma') ->   Val (env, sigma', Obj.magic (CoqSome (Obj.magic EqRefl)))
-    | (false, sigma') ->  Val (env, sigma', Obj.magic (CoqNone))
+    | (true, sigma') ->   Val (istate, env, sigma', Obj.magic (CoqSome (Obj.magic EqRefl)))
+    | (false, sigma') ->  Val (istate, env, sigma', Obj.magic (CoqNone))
     end
-  | Fail (t, s) -> Err (env, sigma, s)
+  | Fail (t, s) -> Err (istate, env, sigma, s)
   | Evar2 t ->    (* sketchy as SHIIIIIT *)
     let tta = type_univ_of_constr env sigma v in
     let nta = nf_val env sigma t tta in
     let (sigma', ev) = Evarutil.new_evar env sigma (EConstr.of_constr nta) in
-    let Evar (k, _) = Constr.kind (EConstr.Unsafe.to_constr ev) in
-    let ev_accu = mk_evar_accu k [||] in
-      Val (env, sigma', ev_accu)
-  | Try (t, fst, snd) -> begin match (interpret env sigma fst) with
-    | Val (env', sigma', v) -> Val (env', sigma', v)
-    | Err (_, _, _) -> interpret env sigma snd
+    let Evar (k, a) = EConstr.kind sigma' ( ev) in
+
+    let args = Array.map (fun var ->
+      begin match (EConstr.kind sigma' var) with
+      | Var id -> mk_var_accu ( id)
+      | _ -> assert false
+      end) a in
+
+    let ev_accu = mk_evar_accu k args in
+      Val (istate, env, sigma', ev_accu)
+  | Try (t, fst, snd) -> begin match (interpret istate env sigma fst) with
+    | Val (istate, env', sigma', v) -> Val (istate, env', sigma', v)
+    | Err (_, _, _, _) -> interpret istate env sigma snd
     end
   | Nu (a, b, func) ->
     let tta = type_univ_of_constr env sigma v in(* this is all to extract Type... because of universe problems *)
     let ta = nf_val env sigma  a tta in
-    let (sigma', ev) = Evarutil.new_evar env sigma (EConstr.of_constr ta) in
+
+    let id  = fresh_name "nu" istate in
+    let var = mk_var_accu id in
+    let env = push_named (Context.Named.Declaration.LocalAssum ( id, ta)) env in
+
+
+(*     let (sigma', ev) = Evarutil.new_evar env sigma (EConstr.of_constr ta) in
     let Evar (k, _) = Constr.kind (EConstr.Unsafe.to_constr ev) in
     let ev_accu = mk_evar_accu k [||] in
-
-    interpret env sigma' ((Obj.magic func) ev_accu)
+ *)
+    interpret istate env sigma ((Obj.magic func) var)
   | Fix (a, b, s, i, f, x) ->
     let fixf = (fun x ->
       Obj.magic (Fix (a, b, s, i, f, x)) : Nativevalues.t) in
     let iter = (Obj.magic f) (Obj.magic fixf) x in
 
-    interpret env sigma iter
+    interpret istate env sigma iter
   | Fix2 (a1, a2, b, s, i, f, x, y) ->
     let fixf = (fun x y ->
       Obj.magic (Fix2 (a1, a2, b, s, i, f, x, y)) : Nativevalues.t) in
     let iter = (Obj.magic f) (Obj.magic fixf) x y in
 
-    interpret env sigma iter
+    interpret istate env sigma iter
   | Abs (a, p, x, px) ->
       let tta = type_univ_of_constr env sigma v in(* this is all to extract Type... because of universe problems *)
       let na = nf_val env sigma a tta in
@@ -611,7 +624,7 @@ and intrepret' env sigma v = begin match (Obj.magic v : mtaclite) with
       begin match Nativelib.compile ml_filename code ~profile:false with
         | true, fn ->
           Nativelib.call_linker ~fatal:true prefix fn (Some upd);
-          Val (env, sigma, !Nativelib.rt1)
+          Val (istate, env, sigma, !Nativelib.rt1)
         | _ -> assert false
       end
   end
@@ -634,7 +647,7 @@ let compile env sigma _ constr =
       Nativelib.call_linker ~fatal: true prefix fn (Some upd);
       Feedback.msg_info (str "starting interpretation");
 
-      let Val (env', sigma', res) = interpret env sigma !Nativelib.rt1 in
+      let Val (istate, env', sigma', res) = interpret ({ fresh_counter = ref 0; metas = 0}) env sigma !Nativelib.rt1 in
       Feedback.msg_info (str "done interpretation");
 
       (* Readback of values is 'type-directed', it deconstructs the value's type as it builds up it's coq representation.
@@ -650,5 +663,5 @@ let compile env sigma _ constr =
       (* do the actual readback *)
       let (redback : constr) = nf_val env' sigma' res red in
 
-      Val (env', sigma', lazy (EConstr.of_constr (redback)))
+      Val (istate, env', sigma', lazy (EConstr.of_constr (redback)))
     | _ -> assert false

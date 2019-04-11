@@ -102,75 +102,107 @@ let abs ?(mkprod=false) (env, sigma) a p x y =
   else
     Loc.raise (Omg "error_abs")
 
-let rec interpret env sigma goal constr =
+let clean_unused_metas sigma metas term =
+  let rec rem (term : constr) (metas : Evar.Set.t) =
+    let fms = Evd.evars_of_term (EConstr.Unsafe.to_constr term) in
+    let (metas : Evar.Set.t) = Evar.Set.diff metas fms in
+    Evar.Set.fold (fun ev metas ->
+      let ev_info = Evd.find sigma ev  in
+      let metas = rem (Evd.evar_concl ev_info) metas in
+      let metas = List.fold_right (fun named  metas ->
+        match named with
+        | Context.Named.Declaration.LocalAssum (_, ty) -> rem ty metas
+        | LocalDef   (_, v, ty) -> let metas = rem ty metas in rem v metas
+        ) (Evd.evar_context ev_info) metas in
+      match Evd.evar_body ev_info with
+      | Evar_empty -> metas
+      | Evar_defined b -> rem b metas
+      ) fms metas
+  in
+  let metas = rem term metas in
+  (* remove all the reminding metas *)
+  Evar.Set.fold (fun ev sigma -> Evd.remove (sigma : Evd.evar_map) ev) metas sigma
+
+(* let post_cleanup res =
+  match res with
+  | Val (istate, env, sigma, res) -> let
+      sigma' = clean_unused_metas sigma envs
+    in Val (istate, env, sigma', res)
+ *)
+
+let rec interpret istate env sigma goal constr =
   let red = whd_all env sigma constr in
   let hs, args = decompose_app sigma red in
 
   match args with
     | [f]    when eq_constr sigma hs (Lazy.force mtacPrint) ->
         print env sigma f;
-        Val (env, sigma, CoqUnit.mkTT)
+        Val (istate, env, sigma, CoqUnit.mkTT)
     | [t; a; b] when eq_constr sigma hs (Lazy.force mtacUnify) ->
       let a_red = whd_all env sigma a in
       let b_red = whd_all env sigma b in
       let unified = unify sigma env [] a_red b_red in
-      Feedback.msg_info (Printer.pr_econstr ( a_red)) ;
-      Feedback.msg_info (Printer.pr_econstr ( b_red)) ;
+      (* Feedback.msg_info (Printer.pr_econstr ( a_red)) ; *)
+      (* Feedback.msg_info (Printer.pr_econstr ( b_red)) ; *)
 
       begin match unified with
       | (true, sigma') ->
         let o = CoqOption.mkSome (CoqEq.mkAppEq t a b) (CoqEq.mkAppEqRefl t a) in
-        Val (env, sigma', lazy o)
+        Val (istate, env, sigma', lazy o)
       | (false, sigma') ->
        let o = CoqOption.mkNothing (CoqEq.mkAppEq t a b) in
-        Val (env, sigma', lazy o)
+        Val (istate, env, sigma', lazy o)
       end
     | [_; _; a; b] when eq_constr sigma hs (Lazy.force mtacBind)  ->
-      interpret env sigma goal a >>= fun (env', sigma', a') ->
+      interpret istate env sigma goal a >>= fun (istate, env', sigma', a') ->
         let t' = mkApp(b, [| Lazy.force a'|]) in
-        let o = interpret env' sigma' goal t' in
+        let o = interpret istate env' sigma' goal t' in
         o
-    | [_; a]    when eq_constr sigma hs (Lazy.force mtacRet)  -> Val (env, sigma, lazy a)
-    | [_; a]    when eq_constr sigma hs (Lazy.force mtacRaise) -> Err (env, sigma, lazy a)
+    | [_; a]    when eq_constr sigma hs (Lazy.force mtacRet)  -> Val (istate, env, sigma, lazy a)
+    | [_; a]    when eq_constr sigma hs (Lazy.force mtacRaise) -> Err (istate, env, sigma, lazy a)
     | [a; b; s; i; f; x] when eq_constr sigma hs (Lazy.force mtacFix) ->
         let fixf = mkApp(hs, [|a; b;s;i;f|]) in
         let c = mkApp (f, [|fixf; x|]) in
-        interpret env sigma goal c
+        interpret istate env sigma goal c
     | [a1; a2; b; s; i; f; x; y] when eq_constr sigma hs (Lazy.force mtacFix2) ->
         let fixf = mkApp(hs, [|a1; a2; b;s;i;f|]) in
         let c = mkApp (f, [|fixf; x; y|]) in
-        interpret env sigma goal c
+        interpret istate env sigma goal c
 
     | [a; _; f] when eq_constr sigma hs (Lazy.force mtacNu) ->
-        let fx  = mkApp(Vars.lift 1 f, [|mkRel 1|]) in (* wtf is mkRel? *)
-        let env = push_rel (LocalAssum (Anonymous, a)) env in
+        let id  = fresh_name "nu" istate in
+        let fx  = mkApp(f, [|mkVar id|]) in
+        let env = push_named (Context.Named.Declaration.LocalAssum ( id, a)) env in
+
         begin
-        match (interpret env sigma goal fx) with
-        | Val (env, sigma, co) ->
+        match (interpret istate env sigma goal fx) with
+        | Val (istate, env, sigma, co) ->
           let co' = Lazy.force co in
           (* check that our variable isn't leaked *)
-          if Int.Set.mem 1 (Termops.free_rels sigma co') then
-            Loc.raise (Omg "omg")
+          if Termops.occur_var env sigma id co' then
+            Loc.raise (Omg "can't leak variables from inside nu")
           else
-            Val (env, sigma, lazy (Termops.pop co'))
+            Val (istate, env, sigma, lazy (Termops.pop co'))
           (* return *)
-        | Err (env, sigma, er) ->
-          (* check for variable leak *)
-          (* fail *)
-            Loc.raise (Omg "omg-2")
+        | Err (istate, env, sigma, er) -> Err (istate, env, sigma, er)
+
         end
     | [a] when eq_constr sigma hs (Lazy.force mtacEvar) ->
         let (sigma', ev) = Evarutil.new_evar env sigma a in
-        Val (env, sigma', lazy ev)
+        let Evar (k, a) = EConstr.kind sigma' ( ev) in
+        Val (istate, env, sigma', lazy ev)
     | [a; m; r] when eq_constr sigma hs (Lazy.force mtacTry) ->
         begin
-        match (interpret env sigma goal m) with
-        | Val (a, b, c) -> Val (a, b, c)
-        | Err(_, _, _) -> interpret env sigma goal r
+        match (interpret istate env sigma goal m) with
+        | Val (i, a, b, c) -> Val (i, a, b, c)
+        | Err(_, _, _, _) -> interpret istate env sigma goal r
         end
     | [a; p; x; y] when eq_constr sigma hs (Lazy.force mtacAbs) ->
         let v = abs (env, sigma) a p x y in
 
-        Val (env, sigma, lazy v)
+        Val (istate, env, sigma, lazy v)
     | _ -> Feedback.msg_info (str (Printf.sprintf "%d" (List.length args)));
-        Val (env, sigma, lazy constr)
+        Val (istate, env, sigma, lazy constr)
+
+let run env sigma goal constr =
+  interpret { fresh_counter = ref 0; metas = 0} env sigma goal constr

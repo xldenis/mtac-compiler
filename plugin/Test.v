@@ -24,6 +24,14 @@ Notation "'mfix' f ( x : A ) : 'M' T := b" := (fix' (fun x=>T) (fun f (x : A)=>b
   (at level 85, f at level 0, x at next level, format
   "'[v  ' 'mfix'  f  '(' x  ':'  A ')'  ':'  'M'  T  ':=' '/  ' b ']'").
 
+Goal True.
+Proof.
+  run (nu (fun (x : id True) => abs x (ret I))) as x.
+  compile (nu (fun (x : id True) => abs x (ret I))) as x2.
+
+  compile (ret (fun (x : Prop) => id x)) as v.
+  run (ret (fun (x : Prop) => id x)) as v2.
+Qed.
 
 Goal True.
 Proof.
