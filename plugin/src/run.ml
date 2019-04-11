@@ -35,16 +35,44 @@ let noccurn_env env sigma i =
         && noc (n-1)
   in noc i
 
-let name_occurn_env env n =
-  let ids = Environ.fold_named_context_reverse
-    (fun s decl -> match decl with
-        | LocalAssum (n', _) -> Id.Set.add n' s
-        | LocalDef (n', _, _) -> Id.Set.add n' s
-    )
-    ~init:Id.Set.empty env in (* compute set of ids in env *)
-  let ids = Id.Set.remove n ids in (* remove n *)
-  let ids = Environ.really_needed env ids in (* and compute closure of ids *)
-  Id.Set.mem n ids (* to finally check if n is in it *)
+let name_depends_on sigma deps ty ot =
+  let open Id.Set in let open Termops in
+  let vars = Termops.collect_vars sigma ty in
+  let vars = if Option.has_some ot then
+      union (Termops.collect_vars sigma (Option.get ot)) vars
+    else vars in
+  not (is_empty (inter vars deps))
+
+(* given a named_context env and a variable x it returns all the
+   (named) variables that depends transitively on x *)
+let depends_on env sigma x =
+  let open Id.Set in let open Context.Named in
+  let deps = singleton x in
+  fold_outside (fun v deps->
+    let (n, ot, ty) = Declaration.to_tuple v in
+    if name_depends_on sigma deps ty ot then
+      Id.Set.add n deps
+    else
+      deps) env ~init:deps
+
+let name_deps env x = depends_on (named_context env) x
+
+let compute_deps env sigma x =
+  if isVar sigma x then
+    let name = destVar sigma x in
+    name_deps env sigma name
+  else
+    failwith "check_dependencies should not be called with not a var or rel"
+
+(* given a rel or var x and a term t and its type ty, it checks if t or ty does not depend on x *)
+let check_abs_deps env sigma x t ty =
+  let ndeps = compute_deps env sigma x in
+  let open Id.Set in
+  is_empty ndeps ||
+  (* The term might depend on x, which by invariant we now is a
+     variable (since ndeps is not empty) *)
+  (subset (inter (Termops.collect_vars sigma t) ndeps) (singleton (destVar sigma x)) &&
+   is_empty (inter (Termops.collect_vars sigma ty) ndeps))
 
 open Term
 let mysubstn sigma t n c =
@@ -57,14 +85,6 @@ let mysubstn sigma t n c =
     | _ -> map_with_binders sigma succ (substrec in_arr) depth c
   end in
   substrec false 0 c
-
-
-let subst_evar sigma var res term =
-  let rec substrec depth term = begin match kind sigma term with
-    | e when eq_constr sigma (of_kind e) var -> res
-    | _ -> map_with_binders sigma succ (substrec) depth term
-  end in
-  substrec 0 term
 
 let abs ?(mkprod=false) (env, sigma) a p x y =
   let x = whd_all env sigma x in
@@ -84,19 +104,16 @@ let abs ?(mkprod=false) (env, sigma) a p x y =
         with _ ->
           Loc.raise (Omg "abstract ref error??")
       else
-        Loc.raise (Omg "error_abs_env")
+        Loc.raise (Omg "error_abs_env_rel")
     else
       Loc.raise (Omg "error_abs_type")
   else if isVar sigma x then
-    let name = destVar sigma x in
-    if not (Termops.occur_var env sigma name p) then
-      if not (name_occurn_env env name) then
+    if check_abs_deps env sigma x y p then
+        let name = destVar sigma x in
         let y' = Vars.subst_vars [name] y in
         if mkprod
         then mkProd   (Name name, a, y')
         else mkLambda (Name name, a, y')
-      else
-        Loc.raise (Omg "error_abs_env")
     else
       Loc.raise (Omg "error_abs_type")
   else

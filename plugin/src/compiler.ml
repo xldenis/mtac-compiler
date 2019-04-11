@@ -613,9 +613,7 @@ and intrepret' istate env sigma v = begin match (Obj.magic v : mtaclite) with
       let nx = nf_val env sigma x na in
       let tpx = nf_val env sigma px (mkApp (np, [| nx |])) in
 
-      (* need to lift variables in side tpx *)
-      let v = Run.subst_evar sigma (EConstr.of_constr nx) (EConstr.mkRel 1) (EConstr.Vars.lift 1 (EConstr.of_constr tpx)) in
-      let abs_lambda = EConstr.mkLambda (Names.Anonymous, EConstr.of_constr na, v) in
+      let abs_lambda = Run.abs (env, sigma) (EConstr.of_constr na) (EConstr.of_constr np) (EConstr.of_constr nx) (EConstr.of_constr tpx) in
 
       let c = EConstr.Unsafe.to_constr abs_lambda in
       let ml_filename, prefix = Nativelib.get_ml_filename () in

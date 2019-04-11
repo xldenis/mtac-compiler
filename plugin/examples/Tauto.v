@@ -177,13 +177,13 @@ Proof.
   run (simple_tauto (p -> q -> p /\ q) []).
   all: easy.
 Qed.
-
+(*
 Example implication4 {F G : Prop} : (F -> G) -> F -> G.
 Proof.
   run (simple_tauto ((F -> G) -> F -> G) []).
   all: easy.
-Qed.
-
+Qed.*)
+(*
 Example implication3 : forall (F G : Prop),  (F -> G) -> F -> G.
 Proof.
   run (simple_tauto (forall (F G : Prop), (F -> G) -> F -> G) []).
@@ -199,9 +199,8 @@ Example ex1 {A B C D : Prop}: (A -> A) /\ (B -> B) \/ (A -> B -> C -> D -> (C \/
   | |- ?g => compile (simple_tauto g []) as v; exact v
   end.
 Qed.
-
-
-Ex(*ample complex {F G : Prop -> Prop}:
+*)
+(*Example complex {F G : Prop -> Prop}:
   exists y z, forall x, ((F x -> G y) /\ (G z -> F x)) -> forall x, exists y, (F x -> G y /\ G y -> F x).
 Proof.
   run (simple_tauto (exists y z, forall x, ((F x -> G y) /\ (G z -> F x)) -> forall x, exists y, (F x -> G y /\ G y -> F x)) []).*)

@@ -10,9 +10,5 @@ val run :
 
 val abs : ?mkprod:bool -> (Environ.env * Evd.evar_map) -> types -> types -> constr -> constr -> constr
 
-val subst_evar :
-           Evd.evar_map ->
-           Evd.etypes -> Evd.etypes -> Evd.etypes -> Evd.etypes
-
 val clean_unused_metas :
            Evd.evar_map -> Evar.Set.t -> Evd.etypes -> Evd.evar_map
