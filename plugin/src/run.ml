@@ -6,8 +6,13 @@ open Reductionops
 open EConstr
 open Coqffi
 
-(* the objective here is to write the interpreter for mtaclite. Afterwards I'll write the compiler *)
+(*
+  This file provides a reference tree-walking interpreter for Mtaclite terms.
 
+  It's helpful to establish the desired result of compilation and also to understand
+  how Mtac actually functions.
+
+ *)
 open Monad
 open Unify
 
@@ -119,6 +124,13 @@ let abs ?(mkprod=false) (env, sigma) a p x y =
   else
     Loc.raise (Omg "error_abs")
 
+
+(*
+  During evaluation of mtac terms we can generate a ton of evars which
+  will subsequently be leaked if they aren't matched. This function
+  provides a mechanism to clean them up if they aren't transitively
+  referenced by the final term the tactic produces.
+ *)
 let clean_unused_metas sigma metas term =
   let rec rem (term : constr) (metas : Evar.Set.t) =
     let fms = Evd.evars_of_term (EConstr.Unsafe.to_constr term) in
@@ -140,12 +152,6 @@ let clean_unused_metas sigma metas term =
   (* remove all the reminding metas *)
   Evar.Set.fold (fun ev sigma -> Evd.remove (sigma : Evd.evar_map) ev) metas sigma
 
-(* let post_cleanup res =
-  match res with
-  | Val (istate, env, sigma, res) -> let
-      sigma' = clean_unused_metas sigma envs
-    in Val (istate, env, sigma', res)
- *)
 
 let rec interpret istate env sigma goal constr =
   let red = whd_all env sigma constr in
