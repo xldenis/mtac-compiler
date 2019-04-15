@@ -116,6 +116,46 @@ Definition simple_fix :=
     end
   .
 
+Definition simple_tauto_2 :=
+  mfix2 f (p : Prop) (hyps : list dyn) : M p :=
+    eq <- unify True p;
+
+    match eq with
+    | Some prf => @eq_rect Prop True (Mtac) (ret I) p prf
+    | Nothing =>
+      x <- evar;
+      y <- evar;
+
+      eq <- unify (x \/ y) p;
+
+      match eq with
+      | Some prf =>
+        try (
+          r1 <- f x hyps;
+
+          @eq_rect Prop (x \/ y) Mtac (ret (@or_introl x y r1)) p prf
+        ) (
+          r2 <- f y hyps;
+
+          @eq_rect Prop (x \/ y) Mtac (ret (@or_intror x y r2)) p prf
+        )
+      | Nothing =>
+        q1 <- @evar Prop;
+        q2 <- @evar Prop;
+
+        eq <- unify (q1 -> q2) p;
+        match eq with
+        | Some prf =>
+          omg <- nu (fun (a : q1) =>
+            a' <- f q2 (Dyn _ a :: hyps);
+            abs a a');
+          @eq_rect Prop (q1 -> q2) Mtac (ret omg) p prf
+
+        | Nothing => fail "omg"
+        end
+      end
+    end
+  .
 
 Example fix_ex : True.
 Proof.
@@ -154,9 +194,11 @@ Proof.
   all: (exact True).
 Qed.
 
-Example implication : True -> (False \/ True).
+Example implication : True -> (True \/ True).
 Proof.
-  run (simple_tauto (True -> False \/ True) []).
+  run (simple_tauto_2 (True -> True \/ True) []) as v2.
+  compile (simple_tauto_2 (True -> True \/ True) []) as v. exact v.
+  Unshelve.
   all: exact True.
 Qed.
 
@@ -168,7 +210,8 @@ Qed.
 
 Example implication2 {A : Prop} : A -> A.
 Proof.
-  run (simple_tauto (A -> A) []).
+  compile (simple_tauto (A -> A) []) as v. exact v.
+  Unshelve.
   all: easy.
 Qed.
 
@@ -177,6 +220,63 @@ Proof.
   run (simple_tauto (p -> q -> p /\ q) []).
   all: easy.
 Qed.
+
+(* Example omg4 {C M T : Prop} : (C -> M -> M). *)
+(* Proof. *)
+(*   match goal with *)
+(*   | |- ?g => compile (simple_tauto g []) as v; exact v *)
+(*   end. *)
+(* Qed. *)
+
+Example omg6 {C M T : Prop} :
+((C -> (M -> M)) /\ ((True /\ (True \/ True)) /\ True)).
+Proof.
+  match goal with
+  | |- ?g => compile (simple_tauto g []) as v; exact v
+  end.
+  Unshelve.
+  all: easy.
+Qed.
+
+Example omg5 {C M T : Prop} : (True /\ (T -> True)).
+Proof.
+  match goal with
+  | |- ?g => compile (simple_tauto g []) as v; exact v
+  end.
+  Unshelve.
+  all: easy.
+Qed.
+
+Example omg3 {C M T : Prop} :
+((C -> (M -> M)) /\ ((True /\ (True \/ True)) /\ True)) \/ (True /\ (T -> True)).
+Proof.
+  match goal with
+  | |- ?g => compile (simple_tauto g []) as v; exact v
+  end.
+  Unshelve.
+  all: easy.
+Qed.
+
+Example omg2 {I M S J G R : Prop} :
+  (I -> ((True \/ True) /\ I)) -> (((M -> ((((S -> (((M /\ S) \/ ((I -> ((True \/ True) /\ I)) \/ True)) \/ (J -> (G -> True)))) \/ (R -> True)) \/ M) \/ True)) /\ (True \/ True)) \/ (I -> ((True \/ True) /\ I))).
+Proof.
+  match goal with
+  | |- ?g => compile (simple_tauto g []) as v; exact v
+  end.
+  Unshelve.
+  all: easy.
+Qed.
+
+
+Example omg {D I S V X F B P M N O W : Prop} : ((D -> (((I -> (D \/ (D /\ (((S -> D) /\ (V -> True)) /\ ((X -> D) /\ (D \/ I)))))) /\ ((F -> True) \/ (D \/ (B -> (((D /\ True) /\ (I -> True)) /\ B))))) /\ (True /\ ((D /\ D) /\ (D \/ True))))) \/ (True \/ (True \/ (True \/ (((True \/ True) -> ((True \/ True) \/ ((P -> (True \/ (True \/ True))) \/ (True \/ True)))) \/ (True \/ True)))))) /\ ((M -> ((N -> (N -> N)) /\ True)) \/ (P -> (P /\ (P /\ ((True \/ (D -> ((O -> D) /\ P))) /\ (((M -> ((M \/ P) /\ M)) /\ ((P /\ (P \/ True)) /\ ((W -> W) /\ True))) \/ P)))))).
+Proof.
+  match goal with
+  | |- ?g => compile (simple_tauto g []) as v; exact v
+  end.
+  Unshelve.
+  all: easy.
+Qed.
+
 (*
 Example implication4 {F G : Prop} : (F -> G) -> F -> G.
 Proof.

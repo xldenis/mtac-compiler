@@ -632,13 +632,25 @@ and intrepret' istate env sigma v = begin match (Obj.magic v : mtaclite) with
       let tta = type_univ_of_constr env sigma v in(* this is all to extract Type... because of universe problems *)
       let na = nf_val env sigma a tta in
       (* need to make a A -> Type fun !!! *)
+      Feedback.msg_info (str "omg1") ;
       let np = nf_val env sigma p (mkArrow na tta) in
+      Feedback.msg_info (str "omg2") ;
       let nx = nf_val env sigma x na in
-      let tpx = nf_val env sigma px (mkApp (np, [| nx |])) in
+      Feedback.msg_info (str "omg3") ;
+      Feedback.msg_info (Printer.pr_econstr (EConstr.of_constr na)) ;
+      Feedback.msg_info (Printer.pr_econstr (EConstr.of_constr np)) ;
+      Feedback.msg_info (Printer.pr_econstr (EConstr.of_constr nx)) ;
 
+      let reduced_type = Reductionops.whd_all env sigma (EConstr.of_constr (mkApp (np, [| nx |]))) in
+      Feedback.msg_info (Printer.pr_econstr (reduced_type)) ;
+
+      let tpx = nf_val env sigma px (EConstr.Unsafe.to_constr reduced_type) in
+
+      Feedback.msg_info (str "omg4") ;
       let abs_lambda = Run.abs (env, sigma) (EConstr.of_constr na) (EConstr.of_constr np) (EConstr.of_constr nx) (EConstr.of_constr tpx) in
 
       let c = EConstr.Unsafe.to_constr abs_lambda in
+      Feedback.msg_info (Printer.pr_econstr (EConstr.of_constr c)) ;
       let ml_filename, prefix = Nativelib.get_ml_filename () in
       let code, upd = mk_norm_code (env) (evars_of_evar_map sigma) prefix c in
 
