@@ -1,8 +1,9 @@
 Add Rec LoadPath "../_build/default/theories" as MtacLite.
 Add ML Path "../_build/default/src".
 
-Require Import MtacLite.MtacLite.
+Add LoadPath ".".
 
+Require Import MtacLite.MtacLite.
 Import MtacLite.MtacLiteNotations.
 
 Import Coq.Strings.String.
@@ -10,6 +11,7 @@ Require Import List.
 
 Import ListNotations.
 
+Module TautoExample.
 Record dyn := Dyn { prop : Prop ; elem : prop }.
 
 Definition search (P : Prop) :=
@@ -24,6 +26,44 @@ Definition search (P : Prop) :=
     | nil => fail "empty"
     end.
 
+Delimit Scope M_scope with M.
+
+Program Definition simple_tauto' :=
+  mfix2 f (p : Prop) (hyps : list dyn) : M p :=
+    (mmatch p as p' return M p' with
+      | True : Prop=> ret I
+      | [? x y] x /\ y =>
+          pX <- f x hyps;
+          pY <- f y hyps;
+          ret (conj pX pY)
+      | [? x y] x \/ y =>
+          try (
+            r1 <- f x hyps;
+            ret (@or_introl x y r1)
+          ) (
+            r2 <- f y hyps;
+            ret (@or_intror x y r2)
+          )
+      | [? (x y : Prop)] x -> y =>
+          omg <- nu (fun (a : x) =>
+              a' <- f y (Dyn _ a :: hyps);
+              abs a a');
+          ret omg
+
+      | [? X (Q : X -> Prop)] (exists x : X, Q x) =>
+          x <- @evar X;
+          q <- f (Q x) hyps;
+
+          ret (ex_intro Q x q)
+      | [? (A Q : Prop) ] (forall x : A, Q) =>
+          omg <- nu (fun (a : A) =>
+                       q' <- f Q hyps;
+                       abs a q'
+
+                    );
+          ret omg
+      | _ => search p hyps
+    end)%M.
 
 Definition simple_tauto :=
   mfix2 f (p : Prop) (hyps : list dyn) : M p :=
@@ -116,47 +156,6 @@ Definition simple_fix :=
     end
   .
 
-Definition simple_tauto_2 :=
-  mfix2 f (p : Prop) (hyps : list dyn) : M p :=
-    eq <- unify True p;
-
-    match eq with
-    | Some prf => @eq_rect Prop True (Mtac) (ret I) p prf
-    | Nothing =>
-      x <- evar;
-      y <- evar;
-
-      eq <- unify (x \/ y) p;
-
-      match eq with
-      | Some prf =>
-        try (
-          r1 <- f x hyps;
-
-          @eq_rect Prop (x \/ y) Mtac (ret (@or_introl x y r1)) p prf
-        ) (
-          r2 <- f y hyps;
-
-          @eq_rect Prop (x \/ y) Mtac (ret (@or_intror x y r2)) p prf
-        )
-      | Nothing =>
-        q1 <- @evar Prop;
-        q2 <- @evar Prop;
-
-        eq <- unify (q1 -> q2) p;
-        match eq with
-        | Some prf =>
-          omg <- nu (fun (a : q1) =>
-            a' <- f q2 (Dyn _ a :: hyps);
-            abs a a');
-          @eq_rect Prop (q1 -> q2) Mtac (ret omg) p prf
-
-        | Nothing => fail "omg"
-        end
-      end
-    end
-  .
-
 Example fix_ex : True.
 Proof.
   compile (simple_fix 2) as v.
@@ -196,8 +195,8 @@ Qed.
 
 Example implication : True -> (True \/ True).
 Proof.
-  run (simple_tauto_2 (True -> True \/ True) []) as v2.
-  compile (simple_tauto_2 (True -> True \/ True) []) as v. exact v.
+  run (simple_tauto (True -> True \/ True) []) as v2.
+  compile (simple_tauto (True -> True \/ True) []) as v. exact v.
   Unshelve.
   all: exact True.
 Qed.
@@ -276,7 +275,7 @@ Proof.
   Unshelve.
   all: easy.
 Qed.
-
+End TautoExample.
 (*
 Example implication4 {F G : Prop} : (F -> G) -> F -> G.
 Proof.
