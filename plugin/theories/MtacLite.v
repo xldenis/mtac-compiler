@@ -27,16 +27,12 @@ Inductive Mtac : Type -> Prop :=
 
 Inductive pattern (A : Type) (B : A -> Type) (y : A) : Prop :=
   (* apparently this should be Mtac (B x) *)
-  | pbase : forall x : A, (x = y -> Mtac (B y)) -> pattern A B y
+  | pbase : forall x : A, (y = x -> Mtac (B x)) -> pattern A B y
   | ptele : forall {C:Type}, (forall x : C, pattern A B y) -> pattern A B y.
 
 Arguments pbase {A B y} _ _ .
 
 Arguments ptele {A B y C} _.
-
-End MtacLite.
-
-Export MtacLite.
 
 Module MtacLiteNotations.
 
@@ -62,25 +58,42 @@ Notation "p => b" := (pbase p%core (fun _ => b%core))
   (no associativity, at level 201) : pattern_scope.
 Delimit Scope pattern_scope with pattern.
 
+Notation "'with' | p1 | .. | pn 'end'" :=
+  ((cons p1%pattern (.. (cons pn%pattern nil) ..)))
+  (at level 91, p1 at level 210, pn at level 210) : with_pattern_scope.
+
+Delimit Scope with_pattern_scope with with_pattern.
+
 End MtacLiteNotations.
 
 Import ListNotations.
 Import MtacLiteNotations.
+
 Fixpoint open_pattern {A P y} (p : pattern A P y) : Mtac (P y) :=
   match p with
   | pbase x f =>
       eq <- unify x y;
       match eq return Mtac (P y) with
-      | Some prf => let z := f prf in z
+      | Some prf =>
+        let z := f (eq_sym prf) in match prf with eq_refl => z end
       | None => fail "no match: branch"
       end
   | ptele f => e <- evar; open_pattern (f e)
   end.
 
-Fixpoint mmatch { A P} (y : A) (ps : list (pattern A P y)) :=
+Fixpoint mmatch' {A P} (y : A) (ps : list (pattern A P y)) :=
   match ps with
   | nil => fail "no match"
-  | p :: ps' => try (open_pattern p) (mmatch y ps')
+  | p :: ps' => try (open_pattern p) (mmatch' y ps')
   end.
+
+Notation "'mmatch' x 'as' y 'return' 'M' p ls" :=
+  (@mmatch' _ (fun y => p%type) x ls%with_pattern)
+  (at level 200, ls at level 91) : M_scope.
+Delimit Scope M_Scope with M.
+
+End MtacLite.
+
+Export MtacLite.
 
 Declare ML Module "mtaclite".
