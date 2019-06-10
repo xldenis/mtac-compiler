@@ -645,9 +645,9 @@ and intrepret' istate env sigma v = begin match (Obj.magic v : mtaclite) with
       let ml_filename, prefix = Nativelib.get_ml_filename () in
       let code, upd = mk_norm_code (env) (evars_of_evar_map sigma) prefix c in
 
-      begin match Nativelib.compile ml_filename code ~profile:false with
+      begin match Nativelib.compile ml_filename (code) ~profile:false with
         | true, fn ->
-          Nativelib.call_linker ~fatal:true prefix fn (Some upd);
+          Nativelib.call_linker ~fatal:true prefix fn (Some (upd));
           Val (istate, env, sigma, !Nativelib.rt1)
         | _ -> assert false
       end
@@ -656,6 +656,18 @@ and intrepret' istate env sigma v = begin match (Obj.magic v : mtaclite) with
 (*
   Native compilation and interpretation of mtaclite terms.
  *)
+
+open Nativelib
+
+module StringSet = Set.Make(String)
+open Library
+let get_used_load_paths () =
+  StringSet.elements
+    (List.fold_left (fun acc m -> StringSet.add
+      (Filename.dirname (library_full_filename m)) acc)
+       StringSet.empty (loaded_libraries ()))
+
+let _ = Nativelib.get_load_paths := get_used_load_paths
 
 let compile env sigma _ constr =
   (* is this actually safe to do on all valid tactic terms? *)
@@ -666,31 +678,31 @@ let compile env sigma _ constr =
   Feedback.msg_info (str "starting compilation");
 
   let ml_filename, prefix = Nativelib.get_ml_filename () in
-  let code, upd = mk_norm_code (env) (evars_of_evar_map sigma) prefix c in
+  let code, upd = mk_simple_code (env) (evars_of_evar_map sigma) prefix c in
 
-  match Nativelib.compile ml_filename code ~profile:false with
+  match compile ml_filename code ~profile:false with
     | true, fn ->
       Feedback.msg_info (str "done compiling");
-
-      Nativelib.call_linker ~fatal: true prefix fn (Some upd);
+      update_locations upd ;
+      call_linker ~fatal: true prefix fn (None);
       Feedback.msg_info (str "starting interpretation");
 
       (* interpret the compiled term, producing either an error or a value *)
-      let Val (istate, env', sigma', res) = interpret ({ fresh_counter = ref 0; metas = 0}) env sigma !Nativelib.rt1 in
+      (* let Val (istate, env', sigma', res) = interpret ({ fresh_counter = ref 0; metas = 0}) env sigma !Nativelib.rt1 in *)
       Feedback.msg_info (str "done interpretation");
 
       (* Readback of values is 'type-directed', it deconstructs the value's type as it builds up it's coq representation.
          We already know our return type is Mtac A, so we break it apart to get the A inside
        *)
-      let _, [arg] = decompose_app ty in
+      (* let _, [arg] = decompose_app ty in *)
 
       (* Sometimes our return type may not be normalized and this can pose problems for the readback *)
-      let red = whd_all env' arg in
+      (* let red = whd_all env arg in *)
 
       (* Feedback.msg_info (Printer.pr_econstr (EConstr.of_constr arg)) ; *)
 
       (* do the actual readback *)
-      let (redback : constr) = nf_val env' sigma' res red in
+      let (redback : constr) = nf_val env sigma (!Nativelib.rt1) ty in
 
-      Val (istate, env', sigma', lazy (EConstr.of_constr (redback)))
+      Val ({ fresh_counter = ref 0; metas = 0}, env, sigma, lazy (EConstr.of_constr (redback)))
     | _ -> assert false
