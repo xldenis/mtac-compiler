@@ -2266,7 +2266,7 @@ let compile_tactic env (sigma : Evd.evar_map) prefix (constr : EConstr.t) =
   let ctyp = EConstr.Unsafe.to_constr ctyp in
   let (arg_tys, _) = Term.decompose_prod_n_assum (Array.length args) ctyp in
   let arg_tys = List.map Context.Rel.Declaration.get_type arg_tys in
-  let paired = List.combine (Array.to_list args) (arg_tys) in
+  let paired = List.combine (Array.to_list args) (List.rev arg_tys) in
 
   let (globals, args) = map_with_accum (fun glbls (arg, ty) -> (* wrong, should accumlate the globals *)
     if monadic_type ty

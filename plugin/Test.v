@@ -24,8 +24,13 @@ Notation "'mfix' f ( x : A ) : 'M' T := b" := (fix' (fun x=>T) (fun f (x : A)=>b
   (at level 85, f at level 0, x at next level, format
   "'[v  ' 'mfix'  f  '(' x  ':'  A ')'  ':'  'M'  T  ':=' '/  ' b ']'").
 
+Definition pure_impure (a : Mtac bool) (b : bool) : Mtac bool :=
+  a' <- a ;
+  ret b.
 Lemma cbn_compile : True.
 Proof.
+  (* figure out why I can't run compile twice in the same session. *)
+  compile (pure_impure (ret (orb true false)) (orb false true)) as x.
   (* compile (List.map) as x2. *)
   compile (ret (5 + 2)) as x3.
 Qed.
