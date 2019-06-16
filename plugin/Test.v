@@ -26,8 +26,8 @@ Notation "'mfix' f ( x : A ) : 'M' T := b" := (fix' (fun x=>T) (fun f (x : A)=>b
 
 Lemma cbn_compile : True.
 Proof.
-  (*compile (List.map) as x2.*)
-  compile (5 + 2) as x3.
+  (* compile (List.map) as x2. *)
+  compile (ret (5 + 2)) as x3.
 Qed.
 
 

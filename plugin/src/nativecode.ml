@@ -261,8 +261,8 @@ let push_symbol x =
 
 let symbols_tbl_name = Ginternal "symbols_tbl"
 open Pp
+
 let get_symbols () =
-  Feedback.msg_info (str "omgomgomg");
   let tbl = Array.make (HashtblSymbol.length symb_tbl) dummy_symb in
   HashtblSymbol.iter (fun x i -> tbl.(i) <- x) symb_tbl; tbl
 
@@ -2142,7 +2142,7 @@ let mk_norm_code env sigma prefix t =
 open Pp
 open Names
 
-let rec symbolize_lam env l t =
+let rec symbolize_lam (env : env) l t =
   match t with
   | Levar(evk, args) ->
       let i = push_symbol (SymbEvar evk) in
@@ -2203,6 +2203,90 @@ let mk_simple_code env sigma prefix t =
       [|MLglobal (Ginternal "()")|])) in
   ( header :: gl), (mind_updates, const_updates)
 
+open Coqffi
+
+(* Check if a type is of the form `Mtac A` *)
+let monadic_type ty =
+  let mnd, _ = decompose_app ty in
+  let mtac  = EConstr.Unsafe.to_constr(Lazy.force MtacTerm.mtacMtac) in
+  Constr.equal mtac mnd
+
+let compile_tactic_pure_arg env sigma gl t =
+  let code = Nativelambda.lambda_of_constr env sigma t in
+  let env  = empty_env None () in
+  let code = symbolize_lam env None code in
+  (gl, code)
+
+let compile_tactic_monad_arg env sigma gl t =
+  let code = Nativelambda.lambda_of_constr env sigma t in
+  compile_with_fv env sigma None gl None code
+
+
+let decompose_prod t =
+  let (name,dom,codom as res) = destProd t in
+  match name with
+  | Anonymous -> (Name (Id.of_string "x"),dom,codom)
+  | _ -> res
+
+let evars_of_evar_map sigma =
+  { Nativelambda.evars_val = Evd.existential_opt_value0 sigma;
+    Nativelambda.evars_metas = Evd.meta_type0 sigma }
+
+let map_with_accum f acc l =
+  let accum = ref acc in
+  let rec go l =
+    match l with
+    | [] -> []
+    | (x :: xs) ->
+      let (acc', x') = f !accum x in
+      accum := acc ; x' :: go xs
+  in (!accum, go l)
+
+
+let compile_tactic env (sigma : Evd.evar_map) prefix (constr : EConstr.t) =
+  (* check that result of tactic application is mtac b *)
+  (* unfold application *)
+  let sigma_evars = evars_of_evar_map sigma in
+  let constr' = EConstr.Unsafe.to_constr constr in
+
+  let gl, (mind_updates, const_updates) =
+    let init = ([], empty_updates) in
+    compile_deps env sigma_evars prefix ~interactive:true init constr'
+  in
+
+  let full_ty = Retyping.get_type_of env sigma constr in
+  if monadic_type (EConstr.Unsafe.to_constr full_ty)
+  then ()
+  else anomaly (Pp.str "not a tactic type!") ;
+
+  let tac', args = Constr.destApp constr' in
+  let tac, _ = EConstr.destApp sigma constr in
+  let ctyp = Retyping.get_type_of env sigma tac in
+  (* get type of tactic *)
+  let ctyp = EConstr.Unsafe.to_constr ctyp in
+  let (arg_tys, _) = Term.decompose_prod_n_assum (Array.length args) ctyp in
+  let arg_tys = List.map Context.Rel.Declaration.get_type arg_tys in
+  let paired = List.combine (Array.to_list args) (arg_tys) in
+
+  let (globals, args) = map_with_accum (fun glbls (arg, ty) -> (* wrong, should accumlate the globals *)
+    if monadic_type ty
+    then compile_tactic_monad_arg env sigma_evars glbls arg
+    else compile_tactic_pure_arg  env sigma_evars glbls arg
+  ) gl paired in
+
+  let header = Glet(Ginternal "symbols_tbl",
+    MLapp (MLglobal (Ginternal "get_symbols"),
+      [|MLglobal (Ginternal "()")|])) in
+
+  let (_, func) = compile_tactic_monad_arg env sigma_evars gl tac' in
+  let t1 = mk_internal_let "t1" (MLapp (func, Array.of_list args)) in
+  let g1 = MLglobal (Ginternal "t1") in
+  let (setref : global) = Glet(Ginternal "_", MLsetref("rt1", g1)) in
+  let globals = List.rev (setref :: t1 :: globals) in
+
+  (header :: globals, (mind_updates, const_updates))
+
+
 let mk_library_header dir =
   let libname = Format.sprintf "(str_decode \"%s\")" (str_encode dir) in
   [Glet(Ginternal "symbols_tbl",
@@ -2212,9 +2296,8 @@ let mk_library_header dir =
 let update_location (r,v) = r := v
 
 let update_locations (ind_updates,const_updates) =
-  Feedback.msg_info (str "UPDATING") ;
   Mindmap_env.iter (fun _ -> update_location) ind_updates;
-  Cmap_env.iter (fun _ -> Feedback.msg_info (str"omgomg") ; update_location) const_updates
+  Cmap_env.iter (fun _ -> update_location) const_updates
 
 let add_header_comment mlcode s =
   Gcomment s :: mlcode

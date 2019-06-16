@@ -83,3 +83,5 @@ val link_info_of_dirpath : DirPath.t -> link_info
 val update_locations : code_location_updates -> unit
 
 val add_header_comment : global list -> string -> global list
+
+val compile_tactic : env -> Evd.evar_map -> string -> EConstr.t -> linkable_code

@@ -152,7 +152,6 @@ let compile_library dir code fn =
 let call_linker ?(fatal=true) prefix f upds =
   rt1 := dummy_value ();
   rt2 := dummy_value ();
-  Feedback.msg_info (Pp.str "wtfbbq") ;
 
   if not (Sys.file_exists f) then
     begin
@@ -168,7 +167,6 @@ let call_linker ?(fatal=true) prefix f upds =
      let exn = CErrors.push exn in
      if fatal then iraise exn
      else if !Flags.debug then Feedback.msg_debug CErrors.(iprint exn));
-  Feedback.msg_info (Pp.str "wtfbbq") ;
   match upds with Some upds -> update_locations upds | _ -> ()
 
 let link_library ~prefix ~dirname ~basename =

@@ -678,31 +678,30 @@ let compile env sigma _ constr =
   Feedback.msg_info (str "starting compilation");
 
   let ml_filename, prefix = Nativelib.get_ml_filename () in
-  let code, upd = mk_simple_code (env) (evars_of_evar_map sigma) prefix c in
+  let code, upd = compile_tactic (env) ( sigma) prefix constr in
 
   match compile ml_filename code ~profile:false with
     | true, fn ->
       Feedback.msg_info (str "done compiling");
-      update_locations upd ;
       call_linker ~fatal: true prefix fn (None);
       Feedback.msg_info (str "starting interpretation");
 
       (* interpret the compiled term, producing either an error or a value *)
-      (* let Val (istate, env', sigma', res) = interpret ({ fresh_counter = ref 0; metas = 0}) env sigma !Nativelib.rt1 in *)
+      let Val (istate, env', sigma', res) = interpret ({ fresh_counter = ref 0; metas = 0}) env sigma !Nativelib.rt1 in
       Feedback.msg_info (str "done interpretation");
 
       (* Readback of values is 'type-directed', it deconstructs the value's type as it builds up it's coq representation.
          We already know our return type is Mtac A, so we break it apart to get the A inside
        *)
-      (* let _, [arg] = decompose_app ty in *)
+      let _, [arg] = decompose_app ty in
 
       (* Sometimes our return type may not be normalized and this can pose problems for the readback *)
-      (* let red = whd_all env arg in *)
+      let red = whd_all env arg in
 
-      (* Feedback.msg_info (Printer.pr_econstr (EConstr.of_constr arg)) ; *)
+      Feedback.msg_info (Printer.pr_econstr (EConstr.of_constr arg)) ;
 
       (* do the actual readback *)
-      let (redback : constr) = nf_val env sigma (!Nativelib.rt1) ty in
+      let (redback : constr) = nf_val env sigma res arg in
 
       Val ({ fresh_counter = ref 0; metas = 0}, env, sigma, lazy (EConstr.of_constr (redback)))
     | _ -> assert false
