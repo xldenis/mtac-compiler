@@ -27,10 +27,19 @@ Notation "'mfix' f ( x : A ) : 'M' T := b" := (fix' (fun x=>T) (fun f (x : A)=>b
 Definition pure_impure (a : Mtac bool) (b : bool) : Mtac bool :=
   a' <- a ;
   ret b.
+
+Definition pure_impure2 (a : Mtac bool) (b : bool) : Mtac bool :=
+  a' <- a ;
+  ret a'.
+
 Lemma cbn_compile : True.
 Proof.
   (* figure out why I can't run compile twice in the same session. *)
-  compile (pure_impure (ret (orb true false)) (orb false true)) as x.
+  run (ret (fun (x : nat) => id x)) as y.
+  run (unify (fun (x : nat) => id x) (id)) as y1.
+  compile (pure_impure  (ret (orb true false)) (orb false true)) as x.
+  compile (pure_impure  (ret (orb true false)) (orb false true)) as x'.
+  compile (pure_impure2 (ret (orb true false)) (orb false true)) as x2.
   (* compile (List.map) as x2. *)
   compile (ret (5 + 2)) as x3.
 Qed.

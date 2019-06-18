@@ -7,5 +7,3 @@ val compile :
   'a ->
   constr ->
   (constr lazy_t) data
-
-val construct_of_constr : bool -> Environ.env -> Evd.evar_map -> int -> Retroknowledge.entry -> Retroknowledge.entry * Retroknowledge.entry

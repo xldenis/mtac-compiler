@@ -2128,6 +2128,8 @@ let mk_norm_code env sigma prefix t =
     let init = ([], empty_updates) in
     compile_deps env sigma prefix ~interactive:true init t
   in
+  Feedback.msg_debug (Pp.int (List.length gl)) ;
+
   let code = lambda_of_constr env sigma t in
   let (gl,code) = compile_with_fv env sigma None gl None code in
   let t1 = mk_internal_let "t1" code in
@@ -2248,6 +2250,8 @@ let compile_tactic env (sigma : Evd.evar_map) prefix (constr : EConstr.t) =
   (* unfold application *)
   let sigma_evars = evars_of_evar_map sigma in
   let constr' = EConstr.Unsafe.to_constr constr in
+  clear_symbols ();
+  clear_global_tbl ();
 
   let gl, (mind_updates, const_updates) =
     let init = ([], empty_updates) in
