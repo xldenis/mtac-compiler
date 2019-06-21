@@ -50,10 +50,10 @@ let rec decompose_Llam_Llet lam =
   match lam with
   | Llam(ids,body) ->
       let vars, body = decompose_Llam_Llet body in
-      Array.fold_right (fun x l -> (fst x, None) :: l) ids vars, body
+      Array.fold_right (fun x l -> (x, None) :: l) ids vars, body
   | Llet(id, ty, def,body) ->
       let vars, body = decompose_Llam_Llet body in
-      (id,Some def) :: vars, body
+      ((id, ty),Some def) :: vars, body
   | _ -> [], lam
 
 let decompose_Llam_Llet lam =
@@ -309,9 +309,9 @@ let get_value lc =
   | Luint (UintVal i) -> Nativevalues.mk_uint i
   | _ -> raise Not_found
 
-let make_args start _end =
+(* let make_args start _end =
   Array.init (start - _end + 1) (fun i -> Lrel (Anonymous, start - i))
-
+ *)
 (* Translation of constructors *)
 
 let makeblock env cn u tag args =
@@ -425,7 +425,7 @@ let rec lambda_of_constr cache env sigma c =
 
   | Cast (c, _, _) -> lambda_of_constr cache env sigma c
 
-  | Rel i -> Lrel (RelDecl.get_name (Environ.lookup_rel i env), i)
+  | Rel i -> Lrel ((Environ.lookup_rel i env), i)
 
   | Var id -> Lvar id
 
@@ -483,27 +483,29 @@ let rec lambda_of_constr cache env sigma c =
       (* translation of the argument *)
       let la = lambda_of_constr cache env sigma a in
       let entry = mkInd ind in
+      (* HOLY SHIT THIS IS INCREDIBLY HACKY *)
       let la = try
-          Retroknowledge.get_native_before_match_info (env).retroknowledge
-                  entry prefix (ind,1) la
+          (Obj.magic (Retroknowledge.get_native_before_match_info (env).retroknowledge
+                  entry prefix (ind,1) (Obj.magic la)))
           with Not_found -> la
       in
       (* translation of the type *)
       let lt = lambda_of_constr cache env sigma t in
       (* translation of branches *)
       let mk_branch i b =
-  let cn = (ind,i+1) in
-  let _, arity = tbl.(i) in
+        let cn = (ind,i+1) in
+        let _, arity = tbl.(i) in
         let b = lambda_of_constr cache env sigma b in
-  if Int.equal arity 0 then (cn, empty_ids, b)
-  else
-    match b with
-    | Llam(ids, body) when Int.equal (Array.length ids) arity -> (cn, ids, body)
-    | _ ->
-        let ids = Array.make arity Anonymous in
-        let args = make_args arity 1 in
-        let ll = lam_lift arity b in
-        (cn, ids, mkLapp  ll args) in
+        if Int.equal arity 0 then (cn, empty_ids, b)
+        else
+        match b with
+        | Llam(ids, body) when Int.equal (Array.length ids) arity -> (cn, ids, body)
+        (* | _ ->
+            let ids = Array.make arity Anonymous in
+            let args = make_args arity 1 in
+            let ll = lam_lift arity b in
+            (cn, ids, mkLapp  ll args) *)
+      in
       let bs = Array.mapi mk_branch branches in
       Lcase(annot_sw, lt, la, bs)
 
@@ -517,14 +519,14 @@ let rec lambda_of_constr cache env sigma c =
       let inds = Array.map2 map pos type_bodies in
       let env = Environ.push_rec_types (names, type_bodies, rec_bodies) env in
       let lbodies = lambda_of_args cache env sigma 0 rec_bodies in
-      Lfix((pos, inds, i), (names, ltypes, lbodies))
+      Lfix((pos, inds, i), (Array.map2 (fun x y -> (x, y)) names type_bodies, ltypes, lbodies))
 
   | CoFix(init,(names,type_bodies,rec_bodies)) ->
       let rec_bodies = Array.map2 (Reduction.eta_expand env) rec_bodies type_bodies in
       let ltypes = lambda_of_args cache env sigma 0 type_bodies in
       let env = Environ.push_rec_types (names, type_bodies, rec_bodies) env in
       let lbodies = lambda_of_args cache env sigma 0 rec_bodies in
-      Lcofix(init, (names, ltypes, lbodies))
+      Lcofix(init, (Array.map2 (fun x y -> (x, y)) names type_bodies, ltypes, lbodies))
 
 and lambda_of_app cache env sigma f args =
   match kind f with
@@ -536,8 +538,8 @@ and lambda_of_app cache env sigma f args =
     (* We delay the compilation of arguments to avoid an exponential behavior *)
     let f = Retroknowledge.get_native_compiling_info
                     (env).retroknowledge (mkConst kn) prefix in
-          let args = lambda_of_args cache env sigma 0 args in
-    f args
+    let args = lambda_of_args cache env sigma 0 args in
+    Obj.magic (f (Obj.magic args))
       with Not_found ->
       begin match cb.const_body with
       | Def csubst -> (* TODO optimize if f is a proj and argument is known *)
@@ -561,26 +563,26 @@ and lambda_of_app cache env sigma f args =
       let nargs = Array.length args in
       let prefix = get_mind_prefix env (fst (fst c)) in
       if Int.equal nargs expected then
-      try
-  try
-    Retroknowledge.get_native_constant_static_info
-                         (env).retroknowledge
-                         f args
+        try
+          try
+            let retro = Retroknowledge.get_native_constant_static_info env.retroknowledge f args in
+            (Obj.magic retro : lambda)
           with NotClosed ->
-      assert (Int.equal nparams 0); (* should be fine for int31 *)
+            assert (Int.equal nparams 0); (* should be fine for int31 *)
             let args = lambda_of_args cache env sigma nparams args in
-      Retroknowledge.get_native_constant_dynamic_info
-                           (env).retroknowledge f prefix c args
+            let retro = Retroknowledge.get_native_constant_dynamic_info env.retroknowledge f prefix c (Obj.magic args) in
+            (Obj.magic retro)
         with Not_found ->
-          let args = lambda_of_args cache env sigma nparams args in
-          makeblock env c u tag args
+            let args = lambda_of_args cache env sigma nparams args in
+            makeblock env c u tag args
       else
         let args = lambda_of_args cache env sigma 0 args in
-  (try
-      Retroknowledge.get_native_constant_dynamic_info
-              (env).retroknowledge f prefix c args
-    with Not_found ->
-            mkLapp (Lconstruct (prefix, (c,u))) args)
+        (try
+          let retro = Retroknowledge.get_native_constant_dynamic_info
+            env.retroknowledge f prefix c (Obj.magic args) in
+          (Obj.magic retro : lambda)
+        with Not_found ->
+          mkLapp (Lconstruct (prefix, (c,u))) args)
   | _ ->
       let f = lambda_of_constr cache env sigma f in
       let args = lambda_of_args cache env sigma 0 args in
