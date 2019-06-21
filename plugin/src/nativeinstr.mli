@@ -22,7 +22,7 @@ type uint =
   | UintDecomp of prefix * constructor * lambda
 
 and lambda =
-  | Lrel          of Name.t * int
+  | Lrel          of rel_declaration * int
   | Lvar          of Id.t
   | Lmeta         of metavariable * lambda (* type *)
   | Levar         of Evar.t * lambda array (* arguments *)
@@ -54,6 +54,6 @@ and lambda =
 to be correct. Otherwise, memoization of previous evaluations will be applied
 again to extra arguments (see #7333). *)
 
-and lam_branches = (constructor * Name.t array * lambda) array
+and lam_branches = (constructor * (Name.t * types) array * lambda) array
 
-and fix_decl =  Name.t array * lambda array * lambda array
+and fix_decl =  (Name.t * types) array * lambda array * lambda array
