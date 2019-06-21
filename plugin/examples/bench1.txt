@@ -1,0 +1,90 @@
+starting compilation
+Compilation done in 0.01017
+
+Evaluation done in 0.30116
+
+Prop
+Readback done in 0.00010
+
+Finished transaction in 0.577 secs (0.23u,0.081s) (successful)
+starting compilation
+Compilation done in 0.01428
+
+Evaluation done in 0.29339
+
+Prop
+Readback done in 0.00012
+
+Finished transaction in 0.579 secs (0.226u,0.082s) (successful)
+starting compilation
+Compilation done in 0.00939
+
+Evaluation done in 0.30972
+
+Prop
+Readback done in 0.00011
+
+Finished transaction in 0.56 secs (0.235u,0.084s) (successful)
+starting compilation
+Compilation done in 0.00961
+
+Evaluation done in 0.46594
+
+Prop
+Readback done in 0.00035
+
+Finished transaction in 0.803 secs (0.351u,0.125s) (successful)
+starting compilation
+Compilation done in 0.00919
+
+Evaluation done in 0.35743
+
+Prop
+Readback done in 0.00026
+
+Finished transaction in 0.692 secs (0.272u,0.094s) (successful)
+starting compilation
+Compilation done in 0.01452
+
+Evaluation done in 0.35181
+
+Prop
+Readback done in 0.00017
+
+Finished transaction in 0.675 secs (0.272u,0.095s) (successful)
+starting compilation
+Compilation done in 0.01264
+
+Evaluation done in 0.36142
+
+Prop
+Readback done in 0.00035
+
+Finished transaction in 0.69 secs (0.279u,0.095s) (successful)
+starting compilation
+Compilation done in 0.01231
+
+Evaluation done in 0.44318
+
+Prop
+Readback done in 0.00037
+
+Finished transaction in 0.788 secs (0.343u,0.112s) (successful)
+starting compilation
+Compilation done in 0.00938
+
+Evaluation done in 0.35500
+
+Prop
+Readback done in 0.00013
+
+Finished transaction in 0.663 secs (0.271u,0.092s) (successful)
+starting compilation
+Compilation done in 0.01119
+
+Evaluation done in 0.39804
+
+Prop
+Readback done in 0.00047
+
+Finished transaction in 0.75 secs (0.304u,0.106s) (successful)

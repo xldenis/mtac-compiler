@@ -36,7 +36,7 @@ Lemma cbn_compile : True.
 Proof.
   (* figure out why I can't run compile twice in the same session. *)
   run (ret (fun (x : nat) => id x)) as y.
-  run (unify (fun (x : nat) => id x) (id)) as y1.
+  run (unify (5 + 2) 7) as y1.
   compile (pure_impure  (ret (orb true false)) (orb false true)) as x.
   compile (pure_impure  (ret (orb true false)) (orb false true)) as x'.
   compile (pure_impure2 (ret (orb true false)) (orb false true)) as x2.

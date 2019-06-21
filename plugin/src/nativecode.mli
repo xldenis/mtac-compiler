@@ -72,7 +72,6 @@ val compile_mind_field : ModPath.t -> Label.t ->
 
 val mk_conv_code : env -> evars -> string -> constr -> constr -> linkable_code
 val mk_norm_code : env -> evars -> string -> constr -> linkable_code
-val mk_simple_code : env -> evars -> string -> constr -> linkable_code
 
 val mk_library_header : DirPath.t -> global list
 

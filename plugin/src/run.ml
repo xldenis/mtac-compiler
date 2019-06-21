@@ -162,8 +162,10 @@ let rec interpret istate env sigma goal constr =
         print env sigma f;
         Val (istate, env, sigma, CoqUnit.mkTT)
     | [t; a; b] when eq_constr sigma hs (Lazy.force mtacUnify) ->
-      let a_red = whd_all env sigma a in
-      let b_red = whd_all env sigma b in
+      (* let a_red = whd_all env sigma a in *)
+      (* let b_red = whd_all env sigma b in *)
+      let a_red = a in
+      let b_red = b in
       let unified = unify sigma env [] a_red b_red in
       (* Feedback.msg_info (Printer.pr_econstr ( a_red)) ; *)
       (* Feedback.msg_info (Printer.pr_econstr ( b_red)) ; *)

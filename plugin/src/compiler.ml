@@ -84,6 +84,7 @@ let str_of_mtaclite v = match v with
   | Try _ -> "try"
   | Nu _ -> "nu"
   | Fix _ -> "fix"
+  | Accu _ -> "accu"
 
 let print_constr arg = Feedback.msg_info (Printer.pr_econstr (EConstr.of_constr arg))
 
@@ -106,6 +107,7 @@ let type_univ_of_constr env sigma v : types =
   to perform operations (such as unification).
  *)
 let rec interpret istate env sigma (v : Nativevalues.t) =
+  Feedback.msg_info (Pp.str (str_of_mtaclite (Obj.magic v : mtaclite))) ;
   intrepret' istate env sigma v
 and intrepret' istate env sigma v = begin match (Obj.magic v : mtaclite) with
   | Print s ->
@@ -123,6 +125,9 @@ and intrepret' istate env sigma v = begin match (Obj.magic v : mtaclite) with
     let nta = nf_val env sigma ta tta in
     let na = nf_val env sigma a nta in
     let nb = nf_val env sigma b nta in
+
+      (* Feedback.msg_info (Printer.pr_constr ( na)) ; *)
+      (* Feedback.msg_info (Printer.pr_constr ( nb)) ; *)
 
     let unified = Unify.unify sigma env [] (EConstr.of_constr na) (EConstr.of_constr nb) in
 
@@ -212,6 +217,8 @@ let get_used_load_paths () =
 let _ = Nativelib.get_load_paths := get_used_load_paths
 
 let compile env sigma _ constr =
+  let t0 = Sys.time () in
+
   (* is this actually safe to do on all valid tactic terms? *)
   let c = EConstr.Unsafe.to_constr constr in
 
@@ -224,13 +231,16 @@ let compile env sigma _ constr =
 
   match compile ml_filename code ~profile:false with
     | true, fn ->
-      Feedback.msg_info (str "done compiling");
+      let t1 = Sys.time () in
+      Feedback.msg_info (str (Format.sprintf "Compilation done in %.5f@." (t1 -. t0))) ;
+
       call_linker ~fatal: true prefix fn (None);
-      Feedback.msg_info (str "starting interpretation");
 
       (* interpret the compiled term, producing either an error or a value *)
       let Val (istate, env', sigma', res) = interpret ({ fresh_counter = ref 0; metas = 0}) env sigma !Nativelib.rt1 in
-      Feedback.msg_info (str "done interpretation");
+
+      let t2 = Sys.time () in
+      Feedback.msg_info (str (Format.sprintf "Evaluation done in %.5f@." (t2 -. t1))) ;
 
       (* Readback of values is 'type-directed', it deconstructs the value's type as it builds up it's coq representation.
          We already know our return type is Mtac A, so we break it apart to get the A inside
@@ -244,6 +254,10 @@ let compile env sigma _ constr =
 
       (* do the actual readback *)
       let (redback : constr) = nf_val env sigma res arg in
+
+      let t3 = Sys.time () in
+      Feedback.msg_info (str (Format.sprintf "Readback done in %.5f@." (t3 -. t2))) ;
+
 
       Val ({ fresh_counter = ref 0; metas = 0}, env, sigma, lazy (EConstr.of_constr (redback)))
     | _ -> assert false

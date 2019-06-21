@@ -207,6 +207,23 @@ Proof.
   all: exact True.
 Qed.
 
+Example slow_disj : ((fun m n => n m) (fun f x => f (f (f (f x)))) (fun f x => f ( (f (f (f (f (f x))))))) id False) \/ True.
+Proof.
+  Time match goal with
+  | |- ?g => compile (simple_tauto g []) as v; exact v
+  end.
+Qed.
+
+Example slow_disj2 : ((fun m n => n m) (fun f x => f (f (f (f x)))) (fun f x => f ( (f (f (f (f (f x))))))) id False) \/ True.
+Proof.
+  Time match goal with
+  | |- ?g => run (simple_tauto g []) as v; exact v
+  end.
+  Unshelve.
+  all: try exact True.
+Qed.
+(*
+
 Example implication2 {A : Prop} : A -> A.
 Proof.
   compile (simple_tauto (A -> A) []) as v. exact v.
@@ -275,6 +292,9 @@ Proof.
   Unshelve.
   all: easy.
 Qed.
+
+*)
+
 End TautoExample.
 (*
 Example implication4 {F G : Prop} : (F -> G) -> F -> G.

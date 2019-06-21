@@ -22,13 +22,6 @@ Import MtacLite.MtacLiteNotations.
 Open Scope M_scope.
 Import Coq.Strings.String.
 
-Fixpoint inList' { A } (x : A) (ls : list A) : Mtac A :=
-  mmatch ls as ls' return M A with
-  | nil => fail "omg"
-  | [? y ls' ] y :: ls' => fail "omg"
-  end.
-
-
 Fixpoint inList {A} (x : A) (ls : list A) : Mtac A :=
   match ls with
   | [] => fail "omg"
@@ -42,12 +35,13 @@ Fixpoint inList {A} (x : A) (ls : list A) : Mtac A :=
 .
 
 Lemma bench : True.
-  run (try (inList' True (replicate 100 False)) (ret False)) as v1.
-  Time run (try (inList True (replicate 10000 False)) (ret False)) as v.
+  (* compile (ret (replicate 50000 False)) as l. *)
+  (* run (try (inList True (replicate 100 False)) (ret False)) as v1. *)
+  (* Time run (try (inList True (replicate 10000 False)) (ret False)) as v. *)
   Time compile (try (inList True (replicate 100000 False)) (ret True)) as v2.
-  Time compile (try (inList' True (replicate 50000 False)) (ret True)) as v3.
-  easy.
+  (* Time compile (try (inList True (replicate 50000 False)) (ret True)) as v3. *)
 Qed.
+
 Include TautoExample.TautoExample.
 Lemma b1 {H : Prop} : (True \/ True) \/ ((H -> True) \/ True).
 Proof.

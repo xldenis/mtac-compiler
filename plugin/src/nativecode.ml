@@ -2144,6 +2144,7 @@ let mk_norm_code env sigma prefix t =
 open Pp
 open Names
 
+(* Symbolic compilation of a `lambda`, turns globals into accumulators *)
 let rec symbolize_lam (env : env) l t =
   match t with
   | Levar(evk, args) ->
@@ -2183,27 +2184,29 @@ let rec symbolize_lam (env : env) l t =
       let i = push_symbol (SymbConst cn) in
       let args = [| get_const_code i; MLarray [||] |] in
         (mkMLapp (MLprimitive (Mk_const)) args)
-  | t -> ml_of_lam env l t
-
-let mk_simple_code env sigma prefix t =
-  clear_symbols ();
-  clear_global_tbl ();
-
-  let gl, (mind_updates, const_updates) =
-    let init = ([], empty_updates) in
-    compile_deps env sigma prefix ~interactive:true init t
-  in
-  let code = lambda_of_constr env sigma t in
-  let env = empty_env None () in
-  let code = symbolize_lam env None code in
-  let t1 = mk_internal_let "t1" code in
-  let g1 = MLglobal (Ginternal "t1") in
-  let (setref : global) = Glet(Ginternal "_", MLsetref("rt1",g1)) in
-  let gl = List.rev (setref :: t1 :: gl) in
-  let header = Glet(Ginternal "symbols_tbl",
-    MLapp (MLglobal (Ginternal "get_symbols"),
-      [|MLglobal (Ginternal "()")|])) in
-  ( header :: gl), (mind_updates, const_updates)
+  | Lrel _ -> anomaly (Pp.str "Lrel")
+  | Lvar _ -> anomaly (Pp.str "Lvar")
+  | Lval v ->
+      let i = push_symbol (SymbValue v) in get_value_code i
+  | Lsort s ->
+    let i = push_symbol (SymbSort s) in
+    let uarg = match env.env_univ with
+      | None -> MLarray [||]
+      | Some u -> MLlocal u
+    in
+    let uarg = MLapp(MLprimitive MLmagic, [|uarg|]) in
+    MLapp(MLprimitive Mk_sort, [|get_sort_code i; uarg|])
+(*   | Lval _ -> anomaly (Pp.str "Lval")
+  | Lsort _ -> anomaly (Pp.str "Lsort")
+ *)  | Llazy _ -> anomaly (Pp.str "Llazy")
+  | Lforce _ -> anomaly (Pp.str "Lforce")
+  | Lmeta _ -> anomaly (Pp.str "Lmeta")
+  | Lproj _ -> anomaly (Pp.str "Lproj")
+  | Lconstruct _ -> anomaly (Pp.str "Lconstruct")
+  | Luint _ -> anomaly (Pp.str "Luint")
+  | Lind (prefix, (ind, u)) ->
+       let uargs = ml_of_instance env.env_univ u in
+       mkMLapp (MLglobal (Gind (prefix, ind))) uargs
 
 open Coqffi
 
@@ -2213,6 +2216,7 @@ let monadic_type ty =
   let mtac  = EConstr.Unsafe.to_constr(Lazy.force MtacTerm.mtacMtac) in
   Constr.equal mtac mnd
 
+(* handle free variables in pure args!!! *)
 let compile_tactic_pure_arg env sigma gl t =
   let code = Nativelambda.lambda_of_constr env sigma t in
   let env  = empty_env None () in
@@ -2244,6 +2248,32 @@ let map_with_accum f acc l =
       accum := acc ; x' :: go xs
   in (!accum, go l)
 
+let mllam_of_tactic env l t ty =
+  begin match t with
+    | Lrel _ -> anomaly (Pp.str "Lrel")
+    | Lvar _ -> anomaly (Pp.str "Lvar")
+    | Lmeta _ -> anomaly (Pp.str "Lmeta")
+    | Levar _ -> anomaly (Pp.str "Levar")
+    | Lprod _ -> anomaly (Pp.str "Lprod")
+    | Llam _ -> anomaly (Pp.str "Llam")
+    | Llet _ -> anomaly (Pp.str "Llet")
+    | Lapp _ -> anomaly (Pp.str "Lapp")
+    | Lconst _ -> anomaly (Pp.str "Lconst")
+    | Lproj _ -> anomaly (Pp.str "Lproj")
+    | Lprim _ -> anomaly (Pp.str "Lprim")
+    | Lcase _ -> anomaly (Pp.str "Lcase")
+    | Lif _ -> anomaly (Pp.str "Lif")
+    | Lfix _ -> anomaly (Pp.str "Lfix")
+    | Lcofix _ -> anomaly (Pp.str "Lcofix")
+    | Lmakeblock _ -> anomaly (Pp.str "Lmakeblock")
+    | Lconstruct _ -> anomaly (Pp.str "Lconstruct")
+    | Luint _ -> anomaly (Pp.str "Luint")
+    | Lval _ -> anomaly (Pp.str "Lval")
+    | Lsort _ -> anomaly (Pp.str "Lsort")
+    | Lind _ -> anomaly (Pp.str "Lind")
+    | Llazy _ -> anomaly (Pp.str "Llazy")
+    | Lforce _ -> anomaly (Pp.str "Lforce")
+  end
 
 let compile_tactic env (sigma : Evd.evar_map) prefix (constr : EConstr.t) =
   (* check that result of tactic application is mtac b *)
