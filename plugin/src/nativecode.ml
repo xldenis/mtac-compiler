@@ -758,14 +758,18 @@ type env =
       (* free variables *)
       env_urel : (int * mllambda) list ref; (* list of unbound rel *)
       env_named : (Id.t * mllambda) list ref;
-      env_univ : lname option}
+      env_univ : lname option;
+      env_env : Environ.env;
 
-let empty_env univ () =
+    }
+
+let empty_env env univ () =
   { env_rel = [];
     env_bound = 0;
     env_urel = ref [];
     env_named = ref [];
-    env_univ = univ
+    env_univ = univ;
+    env_env = env;
   }
 
 let push_rel env id =
@@ -1068,222 +1072,54 @@ let ml_of_instance instance u =
   else let u = Array.map ml_of_level u in
        [|MLapp (MLprimitive MLmagic, [|MLarray u|])|]
 
-let rec ml_of_lam env l t =
+open Coqffi
+
+
+open Pp
+open Names
+
+(* Symbolic compilation of a `lambda`, turns globals into accumulators *)
+let rec symbolize_lam (env : env) l t =
   match t with
-  | Lrel(id ,i) -> get_rel env id i
-  | Lvar id -> get_var env id
-  | Lmeta(mv,ty) ->
-     let tyn = fresh_lname Anonymous in
-     let i = push_symbol (SymbMeta mv) in
-     MLapp(MLprimitive Mk_meta, [|get_meta_code i; MLlocal tyn|])
   | Levar(evk, args) ->
-     let i = push_symbol (SymbEvar evk) in
-     (** Arguments are *not* reversed in evar instances in native compilation *)
-     let args = MLarray(Array.map (ml_of_lam env l) args) in
-     MLapp(MLprimitive Mk_evar, [|get_evar_code i; args|])
+      let i = push_symbol (SymbEvar evk) in
+      (** Arguments are *not* reversed in evar instances in native compilation *)
+      let args = MLarray(Array.map (symbolize_lam env l) args) in
+        MLapp(MLprimitive Mk_evar, [|get_evar_code i; args|])
   | Lprod(dom,codom) ->
-      let dom = ml_of_lam env l dom in
-      let codom = ml_of_lam env l codom in
+      let dom = symbolize_lam env l dom in
+      let codom = symbolize_lam env l codom in
       let n = get_prod_name codom in
       let i = push_symbol (SymbName n) in
       MLapp(MLprimitive Mk_prod, [|get_name_code i;dom;codom|])
   | Llam(ids,body) ->
-    let lnames,env = push_rels env ids in
-    MLlam(lnames, ml_of_lam env l body)
+      let lnames,env = push_rels env ids in
+      MLlam(lnames, symbolize_lam env l body)
   | Llet(id,def,body) ->
-      let def = ml_of_lam env l def in
+      let def = symbolize_lam env l def in
       let lname, env = push_rel env id in
-      let body = ml_of_lam env l body in
+      let body = symbolize_lam env l body in
       MLlet(lname,def,body)
   | Lapp(f,args) ->
-      MLapp(ml_of_lam env l f, Array.map (ml_of_lam env l) args)
-  | Lconst (prefix, (c, u)) ->
-     let args = ml_of_instance env.env_univ u in
-     mkMLapp (MLglobal(Gconstant (prefix, c))) args
-  | Lproj (prefix, ind, i) -> MLglobal(Gproj (prefix, ind, i))
+      MLapp(symbolize_lam env l f, Array.map (symbolize_lam env l) args)
   | Lprim _ ->
-      let decl,cond,paux = extract_prim (ml_of_lam env l) t in
+      let decl,cond,paux = extract_prim (symbolize_lam env l) t in
       compile_prim decl cond paux
-  | Lcase (annot,p,a,bs) ->
-      let env_p = empty_env env.env_univ () in
-      let pn = fresh_gpred l in
-      let mlp = ml_of_lam env_p l p in
-      let mlp = generalize_fv env_p mlp in
-      let (pfvn,pfvr) = !(env_p.env_named), !(env_p.env_urel) in
-      let pn = push_global_let pn mlp in
-      (* Compilation of the case *)
-      let env_c = empty_env env.env_univ () in
-      let a_uid = fresh_lname Anonymous in
-      let la_uid = MLlocal a_uid in
-      (* compilation of branches *)
-      let ml_br (c,params, body) =
-        let lnames, env_c = push_rels env_c params in
-        (c, lnames, ml_of_lam env_c l body)
-      in
-      let bs = Array.map ml_br bs in
-      let cn = fresh_gcase l in
-      (* Compilation of accu branch *)
-      let pred = MLapp(MLglobal pn, fv_args env_c pfvn pfvr) in
-      let (fvn, fvr) = !(env_c.env_named), !(env_c.env_urel) in
-      let cn_fv = mkMLapp (MLglobal cn) (fv_args env_c fvn fvr) in
-         (* remark : the call to fv_args does not add free variables in env_c *)
-      let i = push_symbol (SymbMatch annot) in
-      let accu =
-        MLapp(MLprimitive Mk_sw,
-              [| get_match_code i; MLapp (MLprimitive Cast_accu, [|la_uid|]);
-           pred;
-           cn_fv |]) in
-      let cn = push_global_case cn (Array.append (fv_params env_c) [|a_uid|])
-        annot la_uid accu (merge_branches bs)
-      in
-      (* Final result *)
-      let arg = ml_of_lam env l a in
-      let force =
-        if annot.asw_finite then arg
-              else mkForceCofix annot.asw_prefix annot.asw_ind arg in
-      mkMLapp (MLapp (MLglobal cn, fv_args env fvn fvr)) [|force|]
+  | Lcase (annot,p,a,bs) -> anomaly (Pp.str "Lcase")
   | Lif(t,bt,bf) ->
-      MLif(ml_of_lam env l t, ml_of_lam env l bt, ml_of_lam env l bf)
-  | Lfix ((rec_pos, inds, start), (ids, tt, tb)) ->
-      (* Compilation of type *)
-      let env_t = empty_env env.env_univ () in
-      let ml_t = Array.map (ml_of_lam env_t l) tt in
-      let params_t = fv_params env_t in
-      let args_t = fv_args env !(env_t.env_named) !(env_t.env_urel) in
-      let gft = fresh_gfixtype l in
-      let gft = push_global_fixtype gft params_t ml_t in
-      let mk_type = MLapp(MLglobal gft, args_t) in
-      (* Compilation of norm_i *)
-      let ndef = Array.length ids in
-      let lf,env_n = push_rels (empty_env env.env_univ ()) ids in
-      let t_params = Array.make ndef [||] in
-      let t_norm_f = Array.make ndef (Gnorm (l,-1)) in
-      let mk_let envi (id,def) t = MLlet (id,def,t) in
-      let mk_lam_or_let (params,lets,env) (id,def) =
-        let ln,env' = push_rel env id in
-        match def with
-        | None -> (ln::params,lets,env')
-        | Some lam -> (params, (ln,ml_of_lam env l lam)::lets,env')
-      in
-      let ml_of_fix i body =
-        let varsi, bodyi = decompose_Llam_Llet body in
-        let paramsi,letsi,envi =
-          Array.fold_left mk_lam_or_let ([],[],env_n) varsi
-        in
-        let paramsi,letsi =
-          Array.of_list (List.rev paramsi), Array.of_list (List.rev letsi)
-        in
-        t_norm_f.(i) <- fresh_gnorm l;
-        let bodyi = ml_of_lam envi l bodyi in
-        t_params.(i) <- paramsi;
-        let bodyi = Array.fold_right (mk_let envi) letsi bodyi in
-        mkMLlam paramsi bodyi
-      in
-      let tnorm = Array.mapi ml_of_fix tb in
-      let fvn,fvr = !(env_n.env_named), !(env_n.env_urel) in
-      let fv_params = fv_params env_n in
-      let fv_args' = Array.map (fun id -> MLlocal id) fv_params in
-      let norm_params = Array.append fv_params lf in
-      let t_norm_f = Array.mapi (fun i body ->
-  push_global_let (t_norm_f.(i)) (mkMLlam norm_params body)) tnorm in
-      let norm = fresh_gnormtbl l in
-      let norm = push_global_norm norm fv_params
-         (Array.map (fun g -> mkMLapp (MLglobal g) fv_args') t_norm_f) in
-      (* Compilation of fix *)
-      let fv_args = fv_args env fvn fvr in
-      let lf, env = push_rels env ids in
-      let lf_args = Array.map (fun id -> MLlocal id) lf in
-      let mk_norm = MLapp(MLglobal norm, fv_args) in
-      let mkrec i lname =
-  let paramsi = t_params.(i) in
-  let reci = MLlocal (paramsi.(rec_pos.(i))) in
-  let pargsi = Array.map (fun id -> MLlocal id) paramsi in
-        let (prefix, ind) = inds.(i) in
-  let body =
-          MLif(MLisaccu (prefix, ind, reci),
-         mkMLapp
-     (MLapp(MLprimitive (Mk_fix(rec_pos,i)),
-      [|mk_type; mk_norm|]))
-     pargsi,
-         MLapp(MLglobal t_norm_f.(i),
-         Array.concat [fv_args;lf_args;pargsi]))
-  in
-  (lname, paramsi, body) in
-      MLletrec(Array.mapi mkrec lf, lf_args.(start))
-  | Lcofix (start, (ids, tt, tb)) ->
-      (* Compilation of type *)
-      let env_t = empty_env env.env_univ () in
-      let ml_t = Array.map (ml_of_lam env_t l) tt in
-      let params_t = fv_params env_t in
-      let args_t = fv_args env !(env_t.env_named) !(env_t.env_urel) in
-      let gft = fresh_gfixtype l in
-      let gft = push_global_fixtype gft params_t ml_t in
-      let mk_type = MLapp(MLglobal gft, args_t) in
-      (* Compilation of norm_i *)
-      let ndef = Array.length ids in
-      let lf,env_n = push_rels (empty_env env.env_univ ()) ids in
-      let t_params = Array.make ndef [||] in
-      let t_norm_f = Array.make ndef (Gnorm (l,-1)) in
-      let ml_of_fix i body =
-        let idsi,bodyi = decompose_Llam body in
-        let paramsi, envi = push_rels env_n idsi in
-        t_norm_f.(i) <- fresh_gnorm l;
-        let bodyi = ml_of_lam envi l bodyi in
-        t_params.(i) <- paramsi;
-        mkMLlam paramsi bodyi in
-      let tnorm = Array.mapi ml_of_fix tb in
-      let fvn,fvr = !(env_n.env_named), !(env_n.env_urel) in
-      let fv_params = fv_params env_n in
-      let fv_args' = Array.map (fun id -> MLlocal id) fv_params in
-      let norm_params = Array.append fv_params lf in
-      let t_norm_f = Array.mapi (fun i body ->
-  push_global_let (t_norm_f.(i)) (mkMLlam norm_params body)) tnorm in
-      let norm = fresh_gnormtbl l in
-      let norm = push_global_norm norm fv_params
-        (Array.map (fun g -> mkMLapp (MLglobal g) fv_args') t_norm_f) in
-      (* Compilation of fix *)
-      let fv_args = fv_args env fvn fvr in
-      let mk_norm = MLapp(MLglobal norm, fv_args) in
-      let lnorm = fresh_lname Anonymous in
-      let ltype = fresh_lname Anonymous in
-      let lf, env = push_rels env ids in
-      let lf_args = Array.map (fun id -> MLlocal id) lf in
-      let upd i lname cont =
-  let paramsi = t_params.(i) in
-  let pargsi = Array.map (fun id -> MLlocal id) paramsi in
-  let uniti = fresh_lname Anonymous in
-  let body =
-    MLlam(Array.append paramsi [|uniti|],
-    MLapp(MLglobal t_norm_f.(i),
-          Array.concat [fv_args;lf_args;pargsi])) in
-  MLsequence(MLapp(MLprimitive Upd_cofix, [|lf_args.(i);body|]),
-       cont) in
-      let upd = Array.fold_right_i upd lf lf_args.(start) in
-      let mk_let i lname cont =
-  MLlet(lname,
-        MLapp(MLprimitive(Mk_cofix i),[| MLlocal ltype; MLlocal lnorm|]),
-        cont) in
-      let init = Array.fold_right_i mk_let lf upd in
-      MLlet(lnorm, mk_norm, MLlet(ltype, mk_type, init))
+      MLif(symbolize_lam env l t, symbolize_lam env l bt, symbolize_lam env l bf)
 
+  | Lfix ((rec_pos, inds, start), (ids, tt, tb)) -> anomaly (Pp.str "Lfix")
+  | Lcofix (start, (ids, tt, tb)) -> anomaly (Pp.str "Lcofix")
   | Lmakeblock (prefix,(cn,u),_,args) ->
-     let args = Array.map (ml_of_lam env l) args in
-     MLconstruct(prefix,cn,args)
-  | Lconstruct (prefix, (cn,u)) ->
-     let uargs = ml_of_instance env.env_univ u in
-      mkMLapp (MLglobal (Gconstruct (prefix, cn))) uargs
-  | Luint v ->
-     (match v with
-     | UintVal i -> MLapp(MLprimitive Mk_uint, [|MLuint i|])
-     | UintDigits (prefix,cn,ds) ->
-  let c = MLglobal (Gconstruct (prefix, cn)) in
-  let ds = Array.map (ml_of_lam env l) ds in
-  let i31 = MLapp (MLprimitive Mk_I31_accu, [|c|]) in
-  MLapp(i31, ds)
-     | UintDecomp (prefix,cn,t) ->
-  let c = MLglobal (Gconstruct (prefix, cn)) in
-  let t = ml_of_lam env l t in
-  MLapp (MLprimitive Decomp_uint, [|c;t|]))
+      let args = Array.map (symbolize_lam env l) args in
+      MLconstruct(prefix,cn,args)
+  | Lconst (prefix, (cn,u)) ->
+      let i = push_symbol (SymbConst cn) in
+      let args = [| get_const_code i; MLarray [||] |] in
+        (mkMLapp (MLprimitive (Mk_const)) args)
+  | Lrel _ -> anomaly (Pp.str "Lrel")
+  | Lvar _ -> anomaly (Pp.str "Lvar")
   | Lval v ->
       let i = push_symbol (SymbValue v) in get_value_code i
   | Lsort s ->
@@ -1294,20 +1130,83 @@ let rec ml_of_lam env l t =
     in
     let uarg = MLapp(MLprimitive MLmagic, [|uarg|]) in
     MLapp(MLprimitive Mk_sort, [|get_sort_code i; uarg|])
+(*   | Lval _ -> anomaly (Pp.str "Lval")
+  | Lsort _ -> anomaly (Pp.str "Lsort")
+ *)  | Llazy _ -> anomaly (Pp.str "Llazy")
+  | Lforce _ -> anomaly (Pp.str "Lforce")
+  | Lmeta _ -> anomaly (Pp.str "Lmeta")
+  | Lproj _ -> anomaly (Pp.str "Lproj")
+  | Lconstruct _ -> anomaly (Pp.str "Lconstruct")
+  | Luint _ -> anomaly (Pp.str "Luint")
   | Lind (prefix, (ind, u)) ->
-     let uargs = ml_of_instance env.env_univ u in
-     mkMLapp (MLglobal (Gind (prefix, ind))) uargs
-  | Llazy -> MLglobal (Ginternal "lazy")
-  | Lforce -> MLglobal (Ginternal "Lazy.force")
+       let uargs = ml_of_instance env.env_univ u in
+       mkMLapp (MLglobal (Gind (prefix, ind))) uargs
+
+(* Check if a type is of the form `Mtac A` *)
+let monadic_type ty =
+  let mnd, _ = decompose_app ty in
+  let mtac  = EConstr.Unsafe.to_constr(Lazy.force MtacTerm.mtacMtac) in
+  Constr.equal mtac mnd
+
+let rec ml_of_lam (env : env) l t =
+  begin match t with
+    | Lrel _ -> anomaly (Pp.str "Lrel")
+    | Lvar _ -> anomaly (Pp.str "Lvar")
+    | Lmeta _ -> anomaly (Pp.str "Lmeta")
+    | Levar _ -> anomaly (Pp.str "Levar")
+    | Lprod _ -> anomaly (Pp.str "Lprod")
+    | Llam(ids, body) ->
+        let lnames,env = push_rels env ids in
+        MLlam(lnames, ml_of_lam env l body)
+
+    | Llet _ -> anomaly (Pp.str "Llet")
+    | Lapp (f, args) ->
+      let (comp_f, f_ty) = ml_of_lam env l f in
+      let (arg_tys, ret_ty) = Term.decompose_prod_n_assum (Array.length args) f_ty in
+      let arg_tys = List.map Context.Rel.Declaration.get_type arg_tys in
+      let (paired : (lambda * types) list ) = List.combine (Array.to_list args) (List.rev arg_tys) in
+      let func_is_tactic = monadic_type ret_ty in
+      Feedback.msg_info (Printer.pr_econstr (EConstr.of_constr f_ty));
+      let comp_arg = List.map (fun (arg, ty) ->
+        if func_is_tactic && not (monadic_type ty)
+        then begin
+          Feedback.msg_info (Pp.str "lazy comp") ;
+          symbolize_lam env None arg
+        end
+        else begin
+          Feedback.msg_info (Pp.str "eager comp") ;
+          let (x, _) = ml_of_lam env None arg in x
+        end
+      ) paired in
+      MLapp(comp_f, Array.of_list comp_arg), ret_ty
+    | Lconst (prefix, (cn,u)) ->
+     let args = ml_of_instance env.env_univ u in
+     let (const_ty, _) = constant_type env.env_env (cn, u) in
+     mkMLapp (MLglobal(Gconstant (prefix, cn))) args, const_ty
+    | Lproj _ -> anomaly (Pp.str "Lproj")
+    | Lprim _ -> anomaly (Pp.str "Lprim")
+    | Lcase _ -> anomaly (Pp.str "Lcase")
+    | Lif _ -> anomaly (Pp.str "Lif")
+    | Lfix _ -> anomaly (Pp.str "Lfix")
+    | Lcofix _ -> anomaly (Pp.str "Lcofix")
+    | Lmakeblock _ -> anomaly (Pp.str "Lmakeblock")
+    | Lconstruct _ -> anomaly (Pp.str "Lconstruct")
+    | Luint _ -> anomaly (Pp.str "Luint")
+    | Lval _ -> anomaly (Pp.str "Lval")
+    | Lsort _ -> anomaly (Pp.str "Lsort")
+    | Lind _ -> anomaly (Pp.str "Lind")
+    | Llazy -> anomaly (Pp.str "Llazy")
+    | Lforce -> anomaly (Pp.str "Lforce")
+  end
 
 (*
   Compile a clambda into mllambda, after which the only work left to do
   is pretty printing the result and feeding it to the ocaml compiler
  *)
-let mllambda_of_lambda univ auxdefs l t =
-  let env = empty_env univ () in
+let mllambda_of_lambda env univ auxdefs l t =
+  let env = empty_env env univ () in
   global_stack := auxdefs;
-  let ml = ml_of_lam env l t in
+  let (ml, _) = ml_of_lam env l t in
   let fv_rel = !(env.env_urel) in
   let fv_named = !(env.env_named) in
   (* build the free variables *)
@@ -1811,7 +1710,7 @@ let pp_global fmt g =
 
 **)
 let rec compile_with_fv env sigma univ auxdefs l t =
-  let (auxdefs,(fv_named,fv_rel),ml) = mllambda_of_lambda univ auxdefs l t in
+  let (auxdefs,(fv_named,fv_rel),ml) = mllambda_of_lambda env univ auxdefs l t in
   if List.is_empty fv_named && List.is_empty fv_rel then (auxdefs,ml)
   else apply_fv env sigma univ (fv_named,fv_rel) auxdefs ml
 
@@ -2141,85 +2040,12 @@ let mk_norm_code env sigma prefix t =
       [|MLglobal (Ginternal "()")|])) in
   header::gl, (mind_updates, const_updates)
 
-open Pp
-open Names
-
-(* Symbolic compilation of a `lambda`, turns globals into accumulators *)
-let rec symbolize_lam (env : env) l t =
-  match t with
-  | Levar(evk, args) ->
-      let i = push_symbol (SymbEvar evk) in
-      (** Arguments are *not* reversed in evar instances in native compilation *)
-      let args = MLarray(Array.map (symbolize_lam env l) args) in
-        MLapp(MLprimitive Mk_evar, [|get_evar_code i; args|])
-  | Lprod(dom,codom) ->
-      let dom = symbolize_lam env l dom in
-      let codom = symbolize_lam env l codom in
-      let n = get_prod_name codom in
-      let i = push_symbol (SymbName n) in
-      MLapp(MLprimitive Mk_prod, [|get_name_code i;dom;codom|])
-  | Llam(ids,body) ->
-      let lnames,env = push_rels env ids in
-      MLlam(lnames, symbolize_lam env l body)
-  | Llet(id,def,body) ->
-      let def = symbolize_lam env l def in
-      let lname, env = push_rel env id in
-      let body = symbolize_lam env l body in
-      MLlet(lname,def,body)
-  | Lapp(f,args) ->
-      MLapp(symbolize_lam env l f, Array.map (symbolize_lam env l) args)
-  | Lprim _ ->
-      let decl,cond,paux = extract_prim (symbolize_lam env l) t in
-      compile_prim decl cond paux
-  | Lcase (annot,p,a,bs) -> anomaly (Pp.str "Lcase")
-  | Lif(t,bt,bf) ->
-      MLif(symbolize_lam env l t, symbolize_lam env l bt, symbolize_lam env l bf)
-
-  | Lfix ((rec_pos, inds, start), (ids, tt, tb)) -> anomaly (Pp.str "Lfix")
-  | Lcofix (start, (ids, tt, tb)) -> anomaly (Pp.str "Lcofix")
-  | Lmakeblock (prefix,(cn,u),_,args) ->
-      let args = Array.map (symbolize_lam env l) args in
-      MLconstruct(prefix,cn,args)
-  | Lconst (prefix, (cn,u)) ->
-      let i = push_symbol (SymbConst cn) in
-      let args = [| get_const_code i; MLarray [||] |] in
-        (mkMLapp (MLprimitive (Mk_const)) args)
-  | Lrel _ -> anomaly (Pp.str "Lrel")
-  | Lvar _ -> anomaly (Pp.str "Lvar")
-  | Lval v ->
-      let i = push_symbol (SymbValue v) in get_value_code i
-  | Lsort s ->
-    let i = push_symbol (SymbSort s) in
-    let uarg = match env.env_univ with
-      | None -> MLarray [||]
-      | Some u -> MLlocal u
-    in
-    let uarg = MLapp(MLprimitive MLmagic, [|uarg|]) in
-    MLapp(MLprimitive Mk_sort, [|get_sort_code i; uarg|])
-(*   | Lval _ -> anomaly (Pp.str "Lval")
-  | Lsort _ -> anomaly (Pp.str "Lsort")
- *)  | Llazy _ -> anomaly (Pp.str "Llazy")
-  | Lforce _ -> anomaly (Pp.str "Lforce")
-  | Lmeta _ -> anomaly (Pp.str "Lmeta")
-  | Lproj _ -> anomaly (Pp.str "Lproj")
-  | Lconstruct _ -> anomaly (Pp.str "Lconstruct")
-  | Luint _ -> anomaly (Pp.str "Luint")
-  | Lind (prefix, (ind, u)) ->
-       let uargs = ml_of_instance env.env_univ u in
-       mkMLapp (MLglobal (Gind (prefix, ind))) uargs
-
 open Coqffi
-
-(* Check if a type is of the form `Mtac A` *)
-let monadic_type ty =
-  let mnd, _ = decompose_app ty in
-  let mtac  = EConstr.Unsafe.to_constr(Lazy.force MtacTerm.mtacMtac) in
-  Constr.equal mtac mnd
 
 (* handle free variables in pure args!!! *)
 let compile_tactic_pure_arg env sigma gl t =
   let code = Nativelambda.lambda_of_constr env sigma t in
-  let env  = empty_env None () in
+  let env  = empty_env env None () in
   let code = symbolize_lam env None code in
   (gl, code)
 
@@ -2248,33 +2074,6 @@ let map_with_accum f acc l =
       accum := acc ; x' :: go xs
   in (!accum, go l)
 
-let mllam_of_tactic env l t ty =
-  begin match t with
-    | Lrel _ -> anomaly (Pp.str "Lrel")
-    | Lvar _ -> anomaly (Pp.str "Lvar")
-    | Lmeta _ -> anomaly (Pp.str "Lmeta")
-    | Levar _ -> anomaly (Pp.str "Levar")
-    | Lprod _ -> anomaly (Pp.str "Lprod")
-    | Llam _ -> anomaly (Pp.str "Llam")
-    | Llet _ -> anomaly (Pp.str "Llet")
-    | Lapp _ -> anomaly (Pp.str "Lapp")
-    | Lconst _ -> anomaly (Pp.str "Lconst")
-    | Lproj _ -> anomaly (Pp.str "Lproj")
-    | Lprim _ -> anomaly (Pp.str "Lprim")
-    | Lcase _ -> anomaly (Pp.str "Lcase")
-    | Lif _ -> anomaly (Pp.str "Lif")
-    | Lfix _ -> anomaly (Pp.str "Lfix")
-    | Lcofix _ -> anomaly (Pp.str "Lcofix")
-    | Lmakeblock _ -> anomaly (Pp.str "Lmakeblock")
-    | Lconstruct _ -> anomaly (Pp.str "Lconstruct")
-    | Luint _ -> anomaly (Pp.str "Luint")
-    | Lval _ -> anomaly (Pp.str "Lval")
-    | Lsort _ -> anomaly (Pp.str "Lsort")
-    | Lind _ -> anomaly (Pp.str "Lind")
-    | Llazy _ -> anomaly (Pp.str "Llazy")
-    | Lforce _ -> anomaly (Pp.str "Lforce")
-  end
-
 let compile_tactic env (sigma : Evd.evar_map) prefix (constr : EConstr.t) =
   (* check that result of tactic application is mtac b *)
   (* unfold application *)
@@ -2293,30 +2092,19 @@ let compile_tactic env (sigma : Evd.evar_map) prefix (constr : EConstr.t) =
   then ()
   else anomaly (Pp.str "not a tactic type!") ;
 
-  let tac', args = Constr.destApp constr' in
-  let tac, _ = EConstr.destApp sigma constr in
-  let ctyp = Retyping.get_type_of env sigma tac in
-  (* get type of tactic *)
-  let ctyp = EConstr.Unsafe.to_constr ctyp in
-  let (arg_tys, _) = Term.decompose_prod_n_assum (Array.length args) ctyp in
-  let arg_tys = List.map Context.Rel.Declaration.get_type arg_tys in
-  let paired = List.combine (Array.to_list args) (List.rev arg_tys) in
-
-  let (globals, args) = map_with_accum (fun glbls (arg, ty) -> (* wrong, should accumlate the globals *)
-    if monadic_type ty
-    then compile_tactic_monad_arg env sigma_evars glbls arg
-    else compile_tactic_pure_arg  env sigma_evars glbls arg
-  ) gl paired in
-
   let header = Glet(Ginternal "symbols_tbl",
     MLapp (MLglobal (Ginternal "get_symbols"),
       [|MLglobal (Ginternal "()")|])) in
 
-  let (_, func) = compile_tactic_monad_arg env sigma_evars gl tac' in
-  let t1 = mk_internal_let "t1" (MLapp (func, Array.of_list args)) in
+  let env' = empty_env env None () in
+  let code = Nativelambda.lambda_of_constr env sigma_evars constr' in
+
+  let (comp, _) = ml_of_lam env' None code in
+
+  let t1 = mk_internal_let "t1" (comp) in
   let g1 = MLglobal (Ginternal "t1") in
   let (setref : global) = Glet(Ginternal "_", MLsetref("rt1", g1)) in
-  let globals = List.rev (setref :: t1 :: globals) in
+  let globals = List.rev (setref :: t1 :: gl) in
 
   (header :: globals, (mind_updates, const_updates))
 
