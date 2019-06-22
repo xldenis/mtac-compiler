@@ -1119,7 +1119,44 @@ let rec symbolize_lam (env : env) l t =
   | Lprim _ ->
       let decl,cond,paux = extract_prim (symbolize_lam env l) t in
       compile_prim decl cond paux
-  | Lcase (annot,p,a,bs) -> anomaly (Pp.str "Lcase")
+  | Lcase (annot,p,a,bs) ->
+      let env_p = empty_env env.env_env env.env_univ () in
+      let pn = fresh_gpred l in
+      let mlp = symbolize_lam env_p l p in
+      let mlp = generalize_fv env_p mlp in
+      let (pfvn,pfvr) = !(env_p.env_named), !(env_p.env_urel) in
+      let pn = push_global_let pn mlp in
+      (* Compilation of the case *)
+      let env_c = empty_env env.env_env env.env_univ () in
+      let a_uid = fresh_lname Anonymous in
+      let la_uid = MLlocal a_uid in
+      (* compilation of branches *)
+      let ml_br (c,params, body) =
+        let lnames, env_c = push_rels env_c params in
+        (c, lnames, symbolize_lam env_c l body)
+      in
+      let bs = Array.map ml_br bs in
+      let cn = fresh_gcase l in
+      (* Compilation of accu branch *)
+      let pred = MLapp(MLglobal pn, fv_args env_c pfvn pfvr) in
+      let (fvn, fvr) = !(env_c.env_named), !(env_c.env_urel) in
+      let cn_fv = mkMLapp (MLglobal cn) (fv_args env_c fvn fvr) in
+         (* remark : the call to fv_args does not add free variables in env_c *)
+      let i = push_symbol (SymbMatch annot) in
+      let accu =
+        MLapp(MLprimitive Mk_sw,
+              [| get_match_code i; MLapp (MLprimitive Cast_accu, [|la_uid|]);
+           pred;
+           cn_fv |]) in
+      let cn = push_global_case cn (Array.append (fv_params env_c) [|a_uid|])
+        annot la_uid accu (merge_branches bs)
+      in
+      (* Final result *)
+      let arg = symbolize_lam env l a in
+      let force =
+        if annot.asw_finite then arg
+              else mkForceCofix annot.asw_prefix annot.asw_ind arg in
+      mkMLapp (MLapp (MLglobal cn, fv_args env fvn fvr)) [|force|]
   | Lif(t,bt,bf) ->
       MLif(symbolize_lam env l t, symbolize_lam env l bt, symbolize_lam env l bf)
 
@@ -1132,8 +1169,8 @@ let rec symbolize_lam (env : env) l t =
       let i = push_symbol (SymbConst cn) in
       let args = [| get_const_code i; MLarray [||] |] in
         (mkMLapp (MLprimitive (Mk_const)) args)
-  | Lrel _ -> anomaly (Pp.str "Lrel")
-  | Lvar _ -> anomaly (Pp.str "Lvar")
+  | Lrel(id ,i) -> fst (get_rel env (RelDecl.get_name id) i)
+  | Lvar id -> get_var env id
   | Lval (_, v) ->
       let i = push_symbol (SymbValue v) in get_value_code i
   | Lsort s ->
@@ -1166,7 +1203,7 @@ module RelDecl = Context.Rel.Declaration
 
 let rec ml_of_lam (env : env) l t =
   begin match t with
-    | Lrel(id ,i) -> Feedback.msg_info (Pp.str "rel");
+    | Lrel(id ,i) ->
         fst (get_rel env (RelDecl.get_name id) i), (RelDecl.get_type id)
     | Lvar _ -> anomaly (Pp.str "Lvar")
     | Lmeta _ -> anomaly (Pp.str "Lmeta")
@@ -1185,22 +1222,17 @@ let rec ml_of_lam (env : env) l t =
 
     | Llet _ -> anomaly (Pp.str "Llet")
     | Lapp (f, args) ->
-      Feedback.msg_info (Pp.str "app") ;
-
       let (comp_f, f_ty) = ml_of_lam env l f in
       let (arg_tys, ret_ty) = Term.decompose_prod_n_assum (Array.length args) f_ty in
       let arg_tys = List.map Context.Rel.Declaration.get_type arg_tys in
       let (paired : (lambda * types) list ) = List.combine (Array.to_list args) (List.rev arg_tys) in
       let func_is_tactic = monadic_type ret_ty in
       let comp_arg = List.map (fun (arg, ty) ->
-        Feedback.msg_info (Pp.bool (monadic_type ty)) ;
         if func_is_tactic && not (monadic_type ty)
         then begin
-          Feedback.msg_info (Pp.str "lazy comp") ;
           symbolize_lam env None arg
         end
         else begin
-          Feedback.msg_info (Pp.str "eager comp") ;
           let (x, _) = ml_of_lam env None arg in x
         end
       ) paired in
@@ -1210,21 +1242,15 @@ let rec ml_of_lam (env : env) l t =
         let indspec = Inductive.lookup_mind_specif env.env_env ind in
         let cons_ty = Inductive.type_of_constructor (cn, u) indspec in
         let func_is_tactic = monadic_type cty in
-        Feedback.msg_info (Pp.str "makeblock");
-        Feedback.msg_info (Printer.pr_constr cty) ;
-        Feedback.msg_info (Pp.bool func_is_tactic) ;
         let (arg_tys, ret_ty) = Term.decompose_prod_n_assum (Array.length args) cons_ty in
 
         let args = List.map (fun (arg, ty) ->
           let ty =Context.Rel.Declaration.get_type ty in
-          Feedback.msg_info (Pp.bool (monadic_type ty)) ;
           if func_is_tactic && not (monadic_type ty)
           then begin
-            Feedback.msg_info (Pp.str "lazy comp") ;
             symbolize_lam env None arg
           end
           else begin
-            Feedback.msg_info (Pp.str "eager comp") ;
             let (x, _) = ml_of_lam env None arg in x
           end
         ) (List.combine (Array.to_list args) (arg_tys)) in
@@ -1354,13 +1380,26 @@ let rec ml_of_lam (env : env) l t =
       in
       MLletrec(Array.mapi mkrec lf, lf_args.(start)), t_norm_ty.(start)
     | Lcofix _ -> anomaly (Pp.str "Lcofix")
-    | Lconstruct _ -> anomaly (Pp.str "Lconstruct")
+    | Lconstruct (prefix, (cn,u)) ->
+      let ind = inductive_of_constructor cn in
+      let indspec = Inductive.lookup_mind_specif env.env_env ind in
+      let cons_ty = Inductive.type_of_constructor (cn, u) indspec in
+
+      let uargs = ml_of_instance env.env_univ u in
+      mkMLapp (MLglobal (Gconstruct (prefix, cn))) uargs, cons_ty
     | Luint _ -> anomaly (Pp.str "Luint")
     | Lval (ty, v) ->
       let i = push_symbol (SymbValue v) in
       get_value_code i, ty
 
-    | Lsort _ -> anomaly (Pp.str "Lsort")
+    | Lsort s ->
+      let i = push_symbol (SymbSort s) in
+      let uarg = match env.env_univ with
+        | None -> MLarray [||]
+        | Some u -> MLlocal u
+      in
+      let uarg = MLapp(MLprimitive MLmagic, [|uarg|]) in
+      MLapp(MLprimitive Mk_sort, [|get_sort_code i; uarg|]), mkSort s
     | Lind (prefix, (ind, u)) ->
         let uargs = ml_of_instance env.env_univ u in
         let ind_specif = Inductive.lookup_mind_specif env.env_env ind in
@@ -2200,7 +2239,6 @@ let mk_norm_code env sigma prefix t =
     let init = ([], empty_updates) in
     compile_deps env sigma prefix ~interactive:true init t
   in
-  Feedback.msg_debug (Pp.int (List.length gl)) ;
 
   let code = lambda_of_constr env sigma t in
   let (gl,code) = compile_with_fv env sigma None gl None code in
@@ -2260,11 +2298,10 @@ let compile_tactic env (sigma : Evd.evar_map) prefix (constr : EConstr.t) =
       [|MLglobal (Ginternal "()")|])) in
 
   let env' = empty_env env None () in
-  let code = Nativelambda.lambda_of_constr env sigma_evars constr' in
+  let code = lambda_of_constr env sigma_evars constr' in
+  let (gl,code) = compile_with_fv env sigma_evars None gl None code in
 
-  let (comp, _) = ml_of_lam env' None code in
-
-  let t1 = mk_internal_let "t1" (comp) in
+  let t1 = mk_internal_let "t1" (code) in
   let g1 = MLglobal (Ginternal "t1") in
   let (setref : global) = Glet(Ginternal "_", MLsetref("rt1", g1)) in
   let globals = List.rev (setref :: t1 :: gl) in
