@@ -2132,6 +2132,7 @@ let mk_norm_code env sigma prefix t =
 
   let code = lambda_of_constr env sigma t in
   let (gl,code) = compile_with_fv env sigma None gl None code in
+  Feedback.msg_debug (Pp.int (List.length gl)) ;
   let t1 = mk_internal_let "t1" code in
   let g1 = MLglobal (Ginternal "t1") in
   let setref = Glet(Ginternal "_", MLsetref("rt1",g1)) in
@@ -2185,7 +2186,7 @@ let rec symbolize_lam (env : env) l t =
       let args = [| get_const_code i; MLarray [||] |] in
         (mkMLapp (MLprimitive (Mk_const)) args)
   | Lrel _ -> anomaly (Pp.str "Lrel")
-  | Lvar _ -> anomaly (Pp.str "Lvar")
+  | Lvar id -> get_var env id
   | Lval v ->
       let i = push_symbol (SymbValue v) in get_value_code i
   | Lsort s ->
@@ -2208,6 +2209,79 @@ let rec symbolize_lam (env : env) l t =
        let uargs = ml_of_instance env.env_univ u in
        mkMLapp (MLglobal (Gind (prefix, ind))) uargs
 
+let symbolize_lambda  univ auxdefs l t =
+  let env = empty_env univ () in
+  global_stack := auxdefs;
+  let ml = symbolize_lam env l t in
+  let fv_rel = !(env.env_urel) in
+  let fv_named = !(env.env_named) in
+  (* build the free variables *)
+  let get_lname (_,t) =
+   match t with
+   | MLlocal x -> x
+   | _ -> assert false in
+  let params =
+    List.append (List.map get_lname fv_rel) (List.map get_lname fv_named) in
+  if List.is_empty params then
+    (!global_stack, ([],[]), ml)
+  (* final result : global list, fv, ml *)
+  else
+    (!global_stack, (fv_named, fv_rel), mkMLlam (Array.of_list params) ml)
+
+
+let rec compile_with_fv_sym env sigma univ auxdefs l t =
+  let (auxdefs,(fv_named,fv_rel),ml) = symbolize_lambda univ auxdefs l t in
+  if List.is_empty fv_named && List.is_empty fv_rel then (auxdefs,ml)
+  else apply_fv_sym env sigma univ (fv_named,fv_rel) auxdefs ml
+
+and apply_fv_sym env sigma univ (fv_named,fv_rel) auxdefs ml =
+  let get_rel_val (n,_) auxdefs =
+    (*
+    match !(lookup_rel_native_val n env) with
+    | NVKnone ->
+    *)
+        compile_rel_sym env sigma univ auxdefs n
+(*    | NVKvalue (v,d) -> assert false *)
+  in
+  let get_named_val (id,_) auxdefs =
+    (*
+    match !(lookup_named_native_val id env) with
+    | NVKnone ->
+        *)
+        compile_named_sym env sigma univ auxdefs id
+(*    | NVKvalue (v,d) -> assert false *)
+  in
+  let auxdefs = List.fold_right get_rel_val fv_rel auxdefs in
+  let auxdefs = List.fold_right get_named_val fv_named auxdefs in
+
+  let lvl = Context.Rel.length (rel_context env) in
+  let fv_rel = List.map (fun (n,_) -> MLglobal (Grel (lvl-n))) fv_rel in
+  let fv_named = List.map (fun (id,_) -> MLglobal (Gnamed id)) fv_named in
+  let aux_name = fresh_lname Anonymous in
+  auxdefs, MLlet(aux_name, ml, mkMLapp (MLlocal aux_name) (Array.of_list (fv_rel@fv_named)))
+
+and compile_rel_sym env sigma univ auxdefs n =
+  let open Context.Rel.Declaration in
+  let decl = lookup_rel n env in
+  let n = List.length (rel_context env) - n in
+  match decl with
+  | LocalDef (_,t,_) ->
+      let code = lambda_of_constr env sigma t in
+      let auxdefs,code = compile_with_fv env sigma univ auxdefs None code in
+      Glet(Grel n, code)::auxdefs
+  | LocalAssum _ ->
+      Glet(Grel n, MLprimitive (Mk_rel n))::auxdefs
+
+and compile_named_sym env sigma univ auxdefs id =
+  let open Context.Named.Declaration in
+  match lookup_named id env with
+  | LocalDef (_,t,_) ->
+      let code = lambda_of_constr env sigma t in
+      let auxdefs,code = compile_with_fv_sym env sigma univ auxdefs None code in
+      Glet(Gnamed id, code)::auxdefs
+  | LocalAssum _ ->
+      Glet(Gnamed id, MLprimitive (Mk_var id))::auxdefs
+
 open Coqffi
 
 (* Check if a type is of the form `Mtac A` *)
@@ -2219,9 +2293,7 @@ let monadic_type ty =
 (* handle free variables in pure args!!! *)
 let compile_tactic_pure_arg env sigma gl t =
   let code = Nativelambda.lambda_of_constr env sigma t in
-  let env  = empty_env None () in
-  let code = symbolize_lam env None code in
-  (gl, code)
+  compile_with_fv_sym env sigma None gl None code
 
 let compile_tactic_monad_arg env sigma gl t =
   let code = Nativelambda.lambda_of_constr env sigma t in
@@ -2245,7 +2317,7 @@ let map_with_accum f acc l =
     | [] -> []
     | (x :: xs) ->
       let (acc', x') = f !accum x in
-      accum := acc ; x' :: go xs
+      accum := acc' ; x' :: go xs
   in (!accum, go l)
 
 let mllam_of_tactic env l t ty =

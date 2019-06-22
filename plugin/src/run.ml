@@ -156,7 +156,7 @@ let clean_unused_metas sigma metas term =
 let rec interpret istate env sigma goal constr =
   let red = whd_all env sigma constr in
   let hs, args = decompose_app sigma red in
-
+  (* Feedback.msg_info (Pp.str "omg") ; *)
   match args with
     | [f]    when eq_constr sigma hs (Lazy.force mtacPrint) ->
         print env sigma f;

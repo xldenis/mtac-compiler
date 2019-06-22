@@ -107,7 +107,7 @@ let type_univ_of_constr env sigma v : types =
   to perform operations (such as unification).
  *)
 let rec interpret istate env sigma (v : Nativevalues.t) =
-  Feedback.msg_info (Pp.str (str_of_mtaclite (Obj.magic v : mtaclite))) ;
+  (* Feedback.msg_info (Pp.str (str_of_mtaclite (Obj.magic v))) ; *)
   intrepret' istate env sigma v
 and intrepret' istate env sigma v = begin match (Obj.magic v : mtaclite) with
   | Print s ->
@@ -253,11 +253,11 @@ let compile env sigma _ constr =
       Feedback.msg_info (Printer.pr_econstr (EConstr.of_constr arg)) ;
 
       (* do the actual readback *)
-      let (redback : constr) = nf_val env sigma res arg in
+      let (redback : constr) = nf_val env' sigma' res arg in
 
       let t3 = Sys.time () in
       Feedback.msg_info (str (Format.sprintf "Readback done in %.5f@." (t3 -. t2))) ;
 
 
-      Val ({ fresh_counter = ref 0; metas = 0}, env, sigma, lazy (EConstr.of_constr (redback)))
+      Val ({ fresh_counter = ref 0; metas = 0}, env', sigma', lazy (EConstr.of_constr (redback)))
     | _ -> assert false
