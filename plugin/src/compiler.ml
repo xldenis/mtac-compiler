@@ -107,7 +107,7 @@ let type_univ_of_constr env sigma v : types =
   to perform operations (such as unification).
  *)
 let rec interpret istate env sigma (v : Nativevalues.t) =
-  (* Feedback.msg_info (Pp.str (str_of_mtaclite (Obj.magic v))) ; *)
+  (* Feedback.msg_info (Pp.str (str_of_mtaclite (Obj.magic v : mtaclite))) ; *)
   intrepret' istate env sigma v
 and intrepret' istate env sigma v = begin match (Obj.magic v : mtaclite) with
   | Print s ->

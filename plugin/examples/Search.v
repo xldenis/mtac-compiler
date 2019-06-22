@@ -74,9 +74,9 @@ Fixpoint replicate {A} (t : nat) (x : A) : list A :=
   end.
 
 Lemma bench : True.
- pose (replicate 5000 False ++ [True]).
+ pose (replicate 1000 False ++ [True]).
  (*compute in  l.*)
  Time run (search'' True (l)) as v.
- Time compile (search'' True l) as v2.
+ Time compile (search'' True ((replicate 1000 False ++ [True]))) as v2.
 
 
