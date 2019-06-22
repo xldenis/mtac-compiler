@@ -38,13 +38,13 @@ and lambda =
   | Lif           of lambda * lambda * lambda
   | Lfix          of (int array * (string * inductive) array * int) * fix_decl
   | Lcofix        of int * fix_decl (* must be in eta-expanded form *)
-  | Lmakeblock    of prefix * pconstructor * int * lambda array
+  | Lmakeblock    of prefix * pconstructor * types * int * lambda array
                   (* prefix, constructor name, constructor tag, arguments *)
   (* A fully applied constructor *)
   | Lconstruct    of prefix * pconstructor
   (* A partially applied constructor *)
   | Luint         of uint
-  | Lval          of Nativevalues.t
+  | Lval          of types * Nativevalues.t
   | Lsort         of Sorts.t
   | Lind          of prefix * pinductive
   | Llazy

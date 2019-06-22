@@ -132,9 +132,9 @@ let rec map_lam_with_binders g f n lam =
       let lbodies' = Array.Smart.map (f (g (Array.length ids) n)) lbodies in
       if ltypes == ltypes' && lbodies == lbodies' then lam
       else Lcofix(init,(ids,ltypes',lbodies'))
-  | Lmakeblock(prefix,cn,tag,args) ->
+  | Lmakeblock(prefix,cn, ty, tag,args) ->
       let args' = Array.Smart.map (f n) args in
-      if args == args' then lam else Lmakeblock(prefix,cn,tag,args')
+      if args == args' then lam else Lmakeblock(prefix,cn, ty, tag,args')
   | Luint u ->
     let u' = map_uint g f n u in
     if u == u' then lam else Luint u'
@@ -297,14 +297,14 @@ and reduce_lapp substf lids body substa largs =
 let is_value lc =
   match lc with
   | Lval _ -> true
-  | Lmakeblock(_,_,_,args) when Array.is_empty args -> true
+  | Lmakeblock(_,_,_,_,args) when Array.is_empty args -> true
   | Luint (UintVal _) -> true
   | _ -> false
 
 let get_value lc =
   match lc with
-  | Lval v -> v
-  | Lmakeblock(_,_,tag,args) when Array.is_empty args ->
+  | Lval (_, v) -> v
+  | Lmakeblock(_,_,_,tag,args) when Array.is_empty args ->
       Nativevalues.mk_int tag
   | Luint (UintVal i) -> Nativevalues.mk_uint i
   | _ -> raise Not_found
@@ -314,13 +314,13 @@ let get_value lc =
  *)
 (* Translation of constructors *)
 
-let makeblock env cn u tag args =
+let makeblock env cn u ty tag args =
   if Array.for_all is_value args && Array.length args > 0 then
     let args = Array.map get_value args in
-    Lval (Nativevalues.mk_block tag args)
+    Lval (ty, Nativevalues.mk_block tag args)
   else
     let prefix = get_mind_prefix env (fst (fst cn)) in
-    Lmakeblock(prefix, (cn,u), tag, args)
+    Lmakeblock(prefix, (cn,u), ty, tag, args)
 
 (* Translation of constants *)
 
@@ -573,8 +573,9 @@ and lambda_of_app cache env sigma f args =
             let retro = Retroknowledge.get_native_constant_dynamic_info env.retroknowledge f prefix c (Obj.magic args) in
             (Obj.magic retro)
         with Not_found ->
+            let ty = Retyping.get_type_of env (Evd.empty) (EConstr.of_constr (mkApp (mkConstruct c, args))) in
             let args = lambda_of_args cache env sigma nparams args in
-            makeblock env c u tag args
+            makeblock env c u (EConstr.Unsafe.to_constr ty) tag args
       else
         let args = lambda_of_args cache env sigma 0 args in
         (try

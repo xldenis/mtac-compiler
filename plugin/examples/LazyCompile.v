@@ -41,6 +41,11 @@ Lemma lazyInterpreter : True.
   run (lazyUnify (@app nat) ([1] ++ [2])).
 Qed.
 
+Lemma omg : True.
+  compile (unify 1 2) as v.
+  Qed.
+
+
 Lemma lazyCompiler : True.
   (*Fail run (lazyUnify ([1; 2])) as v; exact v.*)
   compile (lazyUnify' ([1] ++ [2])) as v2.
