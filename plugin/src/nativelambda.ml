@@ -495,16 +495,22 @@ let rec lambda_of_constr cache env sigma c =
       let mk_branch i b =
         let cn = (ind,i+1) in
         let _, arity = tbl.(i) in
+        (* Feedback.msg_info (Printer.pr_constr b) ; *)
+        (* Feedback.msg_info (Pp.int arity) ; *)
         let b = lambda_of_constr cache env sigma b in
         if Int.equal arity 0 then (cn, empty_ids, b)
-        else
+        else begin
+        (* Feedback.msg_info (Pp.int arity) ; *)
+
         match b with
         | Llam(ids, body) when Int.equal (Array.length ids) arity -> (cn, ids, body)
-        (* | _ ->
-            let ids = Array.make arity Anonymous in
-            let args = make_args arity 1 in
+        | Llam(ids, body) ->
+            (* Feedback.msg_info (Pp.int (Array.length ids)); *)
+            let ids = Array.init arity (fun i -> (Anonymous, snd ids.(i))) in
+            let args = Array.mapi (fun i (n, ty) -> Lrel (LocalAssum (n, ty), arity - i)) ids in
             let ll = lam_lift arity b in
-            (cn, ids, mkLapp  ll args) *)
+            (cn, ids, mkLapp  ll args)
+        end
       in
       let bs = Array.mapi mk_branch branches in
       Lcase(annot_sw, lt, la, bs)

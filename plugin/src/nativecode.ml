@@ -1167,6 +1167,7 @@ let rec symbolize_lam (env : env) l t =
       MLconstruct(prefix,cn,args)
   | Lconst (prefix, (cn,u)) ->
       let i = push_symbol (SymbConst cn) in
+
       let args = [| get_const_code i; MLarray [||] |] in
         (mkMLapp (MLprimitive (Mk_const)) args)
   | Lrel(id ,i) -> fst (get_rel env (RelDecl.get_name id) i)
@@ -1199,6 +1200,12 @@ let monadic_type ty =
   let mtac  = EConstr.Unsafe.to_constr(Lazy.force MtacTerm.mtacMtac) in
   Constr.equal mtac mnd
 
+let tactic_type ty =
+  let (_, res) = Term.decompose_prod ty in
+  let mnd, _ = decompose_app res in
+  let mtac  = EConstr.Unsafe.to_constr(Lazy.force MtacTerm.mtacMtac) in
+  Constr.equal mtac mnd
+
 module RelDecl = Context.Rel.Declaration
 
 let rec ml_of_lam (env : env) l t =
@@ -1228,8 +1235,9 @@ let rec ml_of_lam (env : env) l t =
       let (paired : (lambda * types) list ) = List.combine (Array.to_list args) (List.rev arg_tys) in
       let func_is_tactic = monadic_type ret_ty in
       let comp_arg = List.map (fun (arg, ty) ->
-        if func_is_tactic && not (monadic_type ty)
+        if func_is_tactic && not (tactic_type ty)
         then begin
+          Feedback.msg_info (Pp.str "symbolize app");
           symbolize_lam env None arg
         end
         else begin
@@ -1242,25 +1250,33 @@ let rec ml_of_lam (env : env) l t =
         let indspec = Inductive.lookup_mind_specif env.env_env ind in
         let cons_ty = Inductive.type_of_constructor (cn, u) indspec in
         let func_is_tactic = monadic_type cty in
-        let (arg_tys, ret_ty) = Term.decompose_prod_n_assum (Array.length args) cons_ty in
+        let (arg_tys, ret_ty) = Term.decompose_prod cons_ty in
+        let arg_tys = Array.of_list (List.rev arg_tys) in
+        let diff = Array.length arg_tys - Array.length args in
 
-        let args = List.map (fun (arg, ty) ->
-          let ty =Context.Rel.Declaration.get_type ty in
-          if func_is_tactic && not (monadic_type ty)
+        let arg_tys = Array.init (Array.length args) (fun i -> arg_tys.(diff + i)) in
+        let args = Array.map2 (fun arg ty ->
+          let ty = snd ty in
+
+          if func_is_tactic && not (tactic_type ty)
           then begin
             symbolize_lam env None arg
           end
           else begin
             let (x, _) = ml_of_lam env None arg in x
           end
-        ) (List.combine (Array.to_list args) (arg_tys)) in
+        ) (args) (arg_tys) in
+
         (* let args = (Array.map (ml_of_lam env l) args) in *)
         (* let args = (Array.map fst args) in *)
-        MLconstruct(prefix,cn,Array.of_list args), cty
+        MLconstruct(prefix,cn, args), cty
     | Lconst (prefix, (cn,u)) ->
-     let args = ml_of_instance env.env_univ u in
-     let (const_ty, _) = constant_type env.env_env (cn, u) in
-     mkMLapp (MLglobal(Gconstant (prefix, cn))) args, const_ty
+      let args = ml_of_instance env.env_univ u in
+      let (const_ty, _) = constant_type env.env_env (cn, u) in
+(*       Feedback.msg_info (Printer.pr_constr const_ty);
+      Feedback.msg_info (Printer.pr_constr (mkConst cn));
+ *)
+      mkMLapp (MLglobal(Gconstant (prefix, cn))) args, const_ty
     | Lproj _ -> anomaly (Pp.str "Lproj")
     | Lprim _ -> anomaly (Pp.str "Lprim")
     | Lcase (annot,p,a,bs) ->
