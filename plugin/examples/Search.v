@@ -61,6 +61,23 @@ Definition search'' {A} (x : A) :=
       end
   end.
 
+Definition search''' {A} (x : A) :=
+  mfix f (s : list A) : M (In x s) :=
+    match s as z return z = s -> Mtac (In x s) with
+    | y :: s' => fun prf =>
+      eq <- unify x y; 
+      match eq with
+      | Some xyprf =>
+        eq_rect _ Mtac (ret (in_eq x s')) (In x s) (f_equal _ (eq_rect_r (fun a => a :: s' = s) prf xyprf))
+      | None =>
+        r <- f s';
+        eq_rect _ Mtac (ret (in_cons _ _ _ r)) (In x s) (f_equal _ prf)
+      end
+
+    | _ => fun _ => fail "wtf"
+    end (eq_refl).
+
+Print search'''.
 Lemma z_in_xyz {A} (x y z : A) : In z [x; y; z].
 Proof.
   run (search z [x; y; z]).
@@ -74,9 +91,11 @@ Fixpoint replicate {A} (t : nat) (x : A) : list A :=
   end.
 
 Lemma bench : True.
- pose (replicate 1000 False ++ [True]).
+ pose (replicate 2000 False ++ [True]).
  (*compute in  l.*)
- Time run (search'' True (l)) as v.
- Time compile (search'' True ((replicate 1000 False ++ [True]))) as v2.
+ Time run (search' True (l)) as v.
+ (* Time compile (omg' True [True]) as v2. *)
+ Time compile (search''' True l) as omg.
+ Time compile (search' True [False; False; False; False; False;  False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False;  False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False; False;True]) as v2.
 
-
+  fold app in v.
