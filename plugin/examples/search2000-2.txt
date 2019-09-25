@@ -1,0 +1,80 @@
+starting compilation
+Compilation done in 0.01409
+
+Evaluation done in 0.94812
+
+Readback done in 0.00766
+
+Finished transaction in 1.262 secs (0.919u,0.08s) (successful)
+starting compilation
+Compilation done in 0.01447
+
+Evaluation done in 0.93206
+
+Readback done in 0.00627
+
+Finished transaction in 1.222 secs (0.898u,0.082s) (successful)
+starting compilation
+Compilation done in 0.01887
+
+Evaluation done in 1.11635
+
+Readback done in 0.00701
+
+Finished transaction in 1.442 secs (1.071u,0.102s) (successful)
+starting compilation
+Compilation done in 0.02142
+
+Evaluation done in 1.10622
+
+Readback done in 0.00646
+
+Finished transaction in 1.466 secs (1.064u,0.101s) (successful)
+starting compilation
+Compilation done in 0.02464
+
+Evaluation done in 1.13009
+
+Readback done in 0.00704
+
+Finished transaction in 1.511 secs (1.097u,0.101s) (successful)
+starting compilation
+Compilation done in 0.01509
+
+Evaluation done in 1.07136
+
+Readback done in 0.00636
+
+Finished transaction in 1.453 secs (1.025u,0.098s) (successful)
+starting compilation
+Compilation done in 0.02374
+
+Evaluation done in 1.05702
+
+Readback done in 0.00657
+
+Finished transaction in 1.462 secs (1.018u,0.099s) (successful)
+starting compilation
+Compilation done in 0.01456
+
+Evaluation done in 1.12594
+
+Readback done in 0.00666
+
+Finished transaction in 1.51 secs (1.082u,0.1s) (successful)
+starting compilation
+Compilation done in 0.01556
+
+Evaluation done in 1.29978
+
+Readback done in 0.01041
+
+Finished transaction in 1.7 secs (1.251u,0.106s) (successful)
+starting compilation
+Compilation done in 0.01832
+
+Evaluation done in 1.11478
+
+Readback done in 0.00631
+
+Finished transaction in 1.512 secs (1.046u,0.122s) (successful)

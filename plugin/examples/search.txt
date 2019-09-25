@@ -1,0 +1,410 @@
+search''' = 
+fun (A : Type) (x : A) =>
+fix' (fun x0 : Prop => Mtac x0) (fun (a : Prop) (s : Mtac a) => s)
+  (fun
+     (f : forall x0 : list A,
+          (fun x1 : Prop => Mtac x1) ((fun s : list A => In x s) x0))
+     (s : list A) =>
+   match s as z return (z = s -> Mtac (In x s)) with
+   | [] => fun _ : [] = s => fail "wtf"
+   | y :: s' =>
+       fun prf : y :: s' = s =>
+       eq0 <- unify x y;
+       match eq0 with
+       | Some xyprf =>
+           eq_rect (In x (x :: s')) Mtac (ret (in_eq x s')) 
+             (In x s)
+             (f_equal (In x) (eq_rect_r (fun a : A => a :: s' = s) prf xyprf))
+       | None =>
+           r <- f s';
+           eq_rect (In x (y :: s')) Mtac (ret (in_cons y x s' r)) 
+             (In x s) (f_equal (In x) prf)
+       end
+   end eq_refl)
+     : forall (A : Type) (x : A) (x0 : list A),
+       Mtac ((fun s : list A => In x s) x0)
+
+Argument A is implicit and maximally inserted
+Argument scopes are [type_scope _ list_scope]
+Finished transaction in 1.868 secs (1.785u,0.062s) (successful)
+starting compilation
+symbolize app
+symbolize app
+symbolize app
+symbolize app
+Compilation done in 0.01021
+
+Evaluation done in 0.48284
+
+Readback done in 4.56027
+
+Finished transaction in 5.396 secs (4.897u,0.204s) (successful)
+search''' = 
+fun (A : Type) (x : A) =>
+fix' (fun x0 : Prop => Mtac x0) (fun (a : Prop) (s : Mtac a) => s)
+  (fun
+     (f : forall x0 : list A,
+          (fun x1 : Prop => Mtac x1) ((fun s : list A => In x s) x0))
+     (s : list A) =>
+   match s as z return (z = s -> Mtac (In x s)) with
+   | [] => fun _ : [] = s => fail "wtf"
+   | y :: s' =>
+       fun prf : y :: s' = s =>
+       eq0 <- unify x y;
+       match eq0 with
+       | Some xyprf =>
+           eq_rect (In x (x :: s')) Mtac (ret (in_eq x s')) 
+             (In x s)
+             (f_equal (In x) (eq_rect_r (fun a : A => a :: s' = s) prf xyprf))
+       | None =>
+           r <- f s';
+           eq_rect (In x (y :: s')) Mtac (ret (in_cons y x s' r)) 
+             (In x s) (f_equal (In x) prf)
+       end
+   end eq_refl)
+     : forall (A : Type) (x : A) (x0 : list A),
+       Mtac ((fun s : list A => In x s) x0)
+
+Argument A is implicit and maximally inserted
+Argument scopes are [type_scope _ list_scope]
+Finished transaction in 1.492 secs (1.434u,0.048s) (successful)
+starting compilation
+symbolize app
+symbolize app
+symbolize app
+symbolize app
+Compilation done in 0.00881
+
+Evaluation done in 0.40821
+
+Readback done in 4.10362
+
+Finished transaction in 4.849 secs (4.379u,0.186s) (successful)
+search''' = 
+fun (A : Type) (x : A) =>
+fix' (fun x0 : Prop => Mtac x0) (fun (a : Prop) (s : Mtac a) => s)
+  (fun
+     (f : forall x0 : list A,
+          (fun x1 : Prop => Mtac x1) ((fun s : list A => In x s) x0))
+     (s : list A) =>
+   match s as z return (z = s -> Mtac (In x s)) with
+   | [] => fun _ : [] = s => fail "wtf"
+   | y :: s' =>
+       fun prf : y :: s' = s =>
+       eq0 <- unify x y;
+       match eq0 with
+       | Some xyprf =>
+           eq_rect (In x (x :: s')) Mtac (ret (in_eq x s')) 
+             (In x s)
+             (f_equal (In x) (eq_rect_r (fun a : A => a :: s' = s) prf xyprf))
+       | None =>
+           r <- f s';
+           eq_rect (In x (y :: s')) Mtac (ret (in_cons y x s' r)) 
+             (In x s) (f_equal (In x) prf)
+       end
+   end eq_refl)
+     : forall (A : Type) (x : A) (x0 : list A),
+       Mtac ((fun s : list A => In x s) x0)
+
+Argument A is implicit and maximally inserted
+Argument scopes are [type_scope _ list_scope]
+Finished transaction in 1.969 secs (1.872u,0.058s) (successful)
+starting compilation
+symbolize app
+symbolize app
+symbolize app
+symbolize app
+Compilation done in 0.01521
+
+Evaluation done in 0.40748
+
+Readback done in 3.88684
+
+Finished transaction in 4.697 secs (4.179u,0.167s) (successful)
+search''' = 
+fun (A : Type) (x : A) =>
+fix' (fun x0 : Prop => Mtac x0) (fun (a : Prop) (s : Mtac a) => s)
+  (fun
+     (f : forall x0 : list A,
+          (fun x1 : Prop => Mtac x1) ((fun s : list A => In x s) x0))
+     (s : list A) =>
+   match s as z return (z = s -> Mtac (In x s)) with
+   | [] => fun _ : [] = s => fail "wtf"
+   | y :: s' =>
+       fun prf : y :: s' = s =>
+       eq0 <- unify x y;
+       match eq0 with
+       | Some xyprf =>
+           eq_rect (In x (x :: s')) Mtac (ret (in_eq x s')) 
+             (In x s)
+             (f_equal (In x) (eq_rect_r (fun a : A => a :: s' = s) prf xyprf))
+       | None =>
+           r <- f s';
+           eq_rect (In x (y :: s')) Mtac (ret (in_cons y x s' r)) 
+             (In x s) (f_equal (In x) prf)
+       end
+   end eq_refl)
+     : forall (A : Type) (x : A) (x0 : list A),
+       Mtac ((fun s : list A => In x s) x0)
+
+Argument A is implicit and maximally inserted
+Argument scopes are [type_scope _ list_scope]
+Finished transaction in 1.482 secs (1.43u,0.045s) (successful)
+starting compilation
+symbolize app
+symbolize app
+symbolize app
+symbolize app
+Compilation done in 0.00821
+
+Evaluation done in 0.41299
+
+Readback done in 3.85296
+
+Finished transaction in 4.549 secs (4.15u,0.161s) (successful)
+search''' = 
+fun (A : Type) (x : A) =>
+fix' (fun x0 : Prop => Mtac x0) (fun (a : Prop) (s : Mtac a) => s)
+  (fun
+     (f : forall x0 : list A,
+          (fun x1 : Prop => Mtac x1) ((fun s : list A => In x s) x0))
+     (s : list A) =>
+   match s as z return (z = s -> Mtac (In x s)) with
+   | [] => fun _ : [] = s => fail "wtf"
+   | y :: s' =>
+       fun prf : y :: s' = s =>
+       eq0 <- unify x y;
+       match eq0 with
+       | Some xyprf =>
+           eq_rect (In x (x :: s')) Mtac (ret (in_eq x s')) 
+             (In x s)
+             (f_equal (In x) (eq_rect_r (fun a : A => a :: s' = s) prf xyprf))
+       | None =>
+           r <- f s';
+           eq_rect (In x (y :: s')) Mtac (ret (in_cons y x s' r)) 
+             (In x s) (f_equal (In x) prf)
+       end
+   end eq_refl)
+     : forall (A : Type) (x : A) (x0 : list A),
+       Mtac ((fun s : list A => In x s) x0)
+
+Argument A is implicit and maximally inserted
+Argument scopes are [type_scope _ list_scope]
+Finished transaction in 1.476 secs (1.426u,0.042s) (successful)
+starting compilation
+symbolize app
+symbolize app
+symbolize app
+symbolize app
+Compilation done in 0.00836
+
+Evaluation done in 0.39096
+
+Readback done in 3.81464
+
+Finished transaction in 4.496 secs (4.092u,0.158s) (successful)
+search''' = 
+fun (A : Type) (x : A) =>
+fix' (fun x0 : Prop => Mtac x0) (fun (a : Prop) (s : Mtac a) => s)
+  (fun
+     (f : forall x0 : list A,
+          (fun x1 : Prop => Mtac x1) ((fun s : list A => In x s) x0))
+     (s : list A) =>
+   match s as z return (z = s -> Mtac (In x s)) with
+   | [] => fun _ : [] = s => fail "wtf"
+   | y :: s' =>
+       fun prf : y :: s' = s =>
+       eq0 <- unify x y;
+       match eq0 with
+       | Some xyprf =>
+           eq_rect (In x (x :: s')) Mtac (ret (in_eq x s')) 
+             (In x s)
+             (f_equal (In x) (eq_rect_r (fun a : A => a :: s' = s) prf xyprf))
+       | None =>
+           r <- f s';
+           eq_rect (In x (y :: s')) Mtac (ret (in_cons y x s' r)) 
+             (In x s) (f_equal (In x) prf)
+       end
+   end eq_refl)
+     : forall (A : Type) (x : A) (x0 : list A),
+       Mtac ((fun s : list A => In x s) x0)
+
+Argument A is implicit and maximally inserted
+Argument scopes are [type_scope _ list_scope]
+Finished transaction in 1.612 secs (1.541u,0.06s) (successful)
+starting compilation
+symbolize app
+symbolize app
+symbolize app
+symbolize app
+Compilation done in 0.00822
+
+Evaluation done in 0.78992
+
+Readback done in 4.01106
+
+Finished transaction in 5.114 secs (4.649u,0.2s) (successful)
+search''' = 
+fun (A : Type) (x : A) =>
+fix' (fun x0 : Prop => Mtac x0) (fun (a : Prop) (s : Mtac a) => s)
+  (fun
+     (f : forall x0 : list A,
+          (fun x1 : Prop => Mtac x1) ((fun s : list A => In x s) x0))
+     (s : list A) =>
+   match s as z return (z = s -> Mtac (In x s)) with
+   | [] => fun _ : [] = s => fail "wtf"
+   | y :: s' =>
+       fun prf : y :: s' = s =>
+       eq0 <- unify x y;
+       match eq0 with
+       | Some xyprf =>
+           eq_rect (In x (x :: s')) Mtac (ret (in_eq x s')) 
+             (In x s)
+             (f_equal (In x) (eq_rect_r (fun a : A => a :: s' = s) prf xyprf))
+       | None =>
+           r <- f s';
+           eq_rect (In x (y :: s')) Mtac (ret (in_cons y x s' r)) 
+             (In x s) (f_equal (In x) prf)
+       end
+   end eq_refl)
+     : forall (A : Type) (x : A) (x0 : list A),
+       Mtac ((fun s : list A => In x s) x0)
+
+Argument A is implicit and maximally inserted
+Argument scopes are [type_scope _ list_scope]
+Finished transaction in 1.558 secs (1.496u,0.052s) (successful)
+starting compilation
+symbolize app
+symbolize app
+symbolize app
+symbolize app
+Compilation done in 0.01226
+
+Evaluation done in 0.42579
+
+Readback done in 4.80430
+
+Finished transaction in 5.592 secs (5.11u,0.211s) (successful)
+search''' = 
+fun (A : Type) (x : A) =>
+fix' (fun x0 : Prop => Mtac x0) (fun (a : Prop) (s : Mtac a) => s)
+  (fun
+     (f : forall x0 : list A,
+          (fun x1 : Prop => Mtac x1) ((fun s : list A => In x s) x0))
+     (s : list A) =>
+   match s as z return (z = s -> Mtac (In x s)) with
+   | [] => fun _ : [] = s => fail "wtf"
+   | y :: s' =>
+       fun prf : y :: s' = s =>
+       eq0 <- unify x y;
+       match eq0 with
+       | Some xyprf =>
+           eq_rect (In x (x :: s')) Mtac (ret (in_eq x s')) 
+             (In x s)
+             (f_equal (In x) (eq_rect_r (fun a : A => a :: s' = s) prf xyprf))
+       | None =>
+           r <- f s';
+           eq_rect (In x (y :: s')) Mtac (ret (in_cons y x s' r)) 
+             (In x s) (f_equal (In x) prf)
+       end
+   end eq_refl)
+     : forall (A : Type) (x : A) (x0 : list A),
+       Mtac ((fun s : list A => In x s) x0)
+
+Argument A is implicit and maximally inserted
+Argument scopes are [type_scope _ list_scope]
+Finished transaction in 1.536 secs (1.482u,0.042s) (successful)
+starting compilation
+symbolize app
+symbolize app
+symbolize app
+symbolize app
+Compilation done in 0.00880
+
+Evaluation done in 0.39658
+
+Readback done in 5.44110
+
+Finished transaction in 6.352 secs (5.687u,0.251s) (successful)
+search''' = 
+fun (A : Type) (x : A) =>
+fix' (fun x0 : Prop => Mtac x0) (fun (a : Prop) (s : Mtac a) => s)
+  (fun
+     (f : forall x0 : list A,
+          (fun x1 : Prop => Mtac x1) ((fun s : list A => In x s) x0))
+     (s : list A) =>
+   match s as z return (z = s -> Mtac (In x s)) with
+   | [] => fun _ : [] = s => fail "wtf"
+   | y :: s' =>
+       fun prf : y :: s' = s =>
+       eq0 <- unify x y;
+       match eq0 with
+       | Some xyprf =>
+           eq_rect (In x (x :: s')) Mtac (ret (in_eq x s')) 
+             (In x s)
+             (f_equal (In x) (eq_rect_r (fun a : A => a :: s' = s) prf xyprf))
+       | None =>
+           r <- f s';
+           eq_rect (In x (y :: s')) Mtac (ret (in_cons y x s' r)) 
+             (In x s) (f_equal (In x) prf)
+       end
+   end eq_refl)
+     : forall (A : Type) (x : A) (x0 : list A),
+       Mtac ((fun s : list A => In x s) x0)
+
+Argument A is implicit and maximally inserted
+Argument scopes are [type_scope _ list_scope]
+Finished transaction in 5.106 secs (4.784u,0.193s) (successful)
+starting compilation
+symbolize app
+symbolize app
+symbolize app
+symbolize app
+Compilation done in 0.02410
+
+Evaluation done in 1.89661
+
+Readback done in 5.75053
+
+Finished transaction in 8.771 secs (7.299u,0.425s) (successful)
+search''' = 
+fun (A : Type) (x : A) =>
+fix' (fun x0 : Prop => Mtac x0) (fun (a : Prop) (s : Mtac a) => s)
+  (fun
+     (f : forall x0 : list A,
+          (fun x1 : Prop => Mtac x1) ((fun s : list A => In x s) x0))
+     (s : list A) =>
+   match s as z return (z = s -> Mtac (In x s)) with
+   | [] => fun _ : [] = s => fail "wtf"
+   | y :: s' =>
+       fun prf : y :: s' = s =>
+       eq0 <- unify x y;
+       match eq0 with
+       | Some xyprf =>
+           eq_rect (In x (x :: s')) Mtac (ret (in_eq x s')) 
+             (In x s)
+             (f_equal (In x) (eq_rect_r (fun a : A => a :: s' = s) prf xyprf))
+       | None =>
+           r <- f s';
+           eq_rect (In x (y :: s')) Mtac (ret (in_cons y x s' r)) 
+             (In x s) (f_equal (In x) prf)
+       end
+   end eq_refl)
+     : forall (A : Type) (x : A) (x0 : list A),
+       Mtac ((fun s : list A => In x s) x0)
+
+Argument A is implicit and maximally inserted
+Argument scopes are [type_scope _ list_scope]
+Finished transaction in 1.9 secs (1.813u,0.066s) (successful)
+starting compilation
+symbolize app
+symbolize app
+symbolize app
+symbolize app
+Compilation done in 0.01017
+
+Evaluation done in 0.44359
+
+Readback done in 4.71094
+
+Finished transaction in 5.511 secs (4.98u,0.224s) (successful)

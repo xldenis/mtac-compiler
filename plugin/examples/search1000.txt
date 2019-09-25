@@ -1,0 +1,89 @@
+Finished transaction in 0.452 secs (0.407u,0.044s) (successful)
+Compilation done in 0.00645
+
+Evaluation done in 0.49275
+
+Readback done in 0.99241
+
+Finished transaction in 1.847 secs (1.341u,0.171s) (successful)
+
+Finished transaction in 0.669 secs (0.598u,0.063s) (successful)
+Compilation done in 0.01567
+
+Evaluation done in 0.24202
+
+Readback done in 1.17756
+
+Finished transaction in 2.144 secs (1.356u,0.12s) (successful)
+
+Finished transaction in 0.638 secs (0.576u,0.055s) (successful)
+Compilation done in 0.01614
+
+Evaluation done in 0.19512
+
+Readback done in 1.65382
+
+Finished transaction in 2.617 secs (1.744u,0.131s) (successful)
+
+Finished transaction in 0.906 secs (0.802u,0.087s) (successful)
+Compilation done in 0.00704
+
+Evaluation done in 0.20191
+
+Readback done in 0.97362
+
+Finished transaction in 1.482 secs (1.104u,0.092s) (successful)
+
+Finished transaction in 0.693 secs (0.617u,0.07s) (successful)
+Compilation done in 0.01639
+
+Evaluation done in 0.46779
+
+Readback done in 1.14057
+
+Finished transaction in 2.185 secs (1.461u,0.177s) (successful)
+
+Finished transaction in 0.554 secs (0.495u,0.049s) (successful)
+Compilation done in 0.01283
+
+Evaluation done in 0.23823
+
+Readback done in 1.03102
+
+Finished transaction in 1.865 secs (1.179u,0.113s) (successful)
+
+Finished transaction in 0.594 secs (0.533u,0.058s) (successful)
+Compilation done in 0.01298
+
+Evaluation done in 0.56871
+
+Readback done in 1.09722
+
+Finished transaction in 2.57 secs (1.533u,0.156s) (successful)
+
+Finished transaction in 0.572 secs (0.505u,0.058s) (successful)
+Compilation done in 0.00761
+
+Evaluation done in 0.38268
+
+Readback done in 0.97967
+
+Finished transaction in 1.803 secs (1.234u,0.146s) (successful)
+
+Finished transaction in 1.414 secs (1.251u,0.135s) (successful)
+Compilation done in 0.01505
+
+Evaluation done in 0.46063
+
+Readback done in 1.99983
+
+Finished transaction in 3.092 secs (2.291u,0.205s) (successful)
+
+Finished transaction in 1.387 secs (1.217u,0.141s) (successful)
+Compilation done in 0.01388
+
+Evaluation done in 0.24901
+
+Readback done in 1.15915
+
+Finished transaction in 2.106 secs (1.328u,0.104s) (successful)

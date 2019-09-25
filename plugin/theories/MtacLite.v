@@ -56,6 +56,7 @@ Notation "[? x .. y ] ps" := (ptele (fun x => .. (ptele (fun y => ps)).. ))
 
 Notation "p => b" := (pbase p%core (fun _ => b%core))
   (no associativity, at level 201) : pattern_scope.
+
 Delimit Scope pattern_scope with pattern.
 
 Notation "'with' | p1 | .. | pn 'end'" :=

@@ -250,7 +250,7 @@ let compile env sigma _ constr =
       (* Sometimes our return type may not be normalized and this can pose problems for the readback *)
       let red = whd_all env arg in
 
-      Feedback.msg_info (Printer.pr_econstr (EConstr.of_constr arg)) ;
+      (* Feedback.msg_info (Printer.pr_econstr (EConstr.of_constr arg)) ; *)
 
       (* do the actual readback *)
       let (redback : constr) = nf_val env' sigma' res arg in
