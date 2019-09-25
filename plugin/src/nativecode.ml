@@ -1226,8 +1226,11 @@ let rec ml_of_lam (env : env) l t =
         let (body', bty) = ml_of_lam env l body in
         let ty = Array.fold_right (fun (id, ty) acc -> mkProd (Anonymous, ty, acc)) ids bty in
         MLlam(lnames, body'), ty
-
-    | Llet _ -> anomaly (Pp.str "Llet")
+    | Llet(id, ty, def,body) ->
+      let (def, _) = ml_of_lam env l def in
+      let lname, env = push_rel env id ty in
+      let (body, ty) = ml_of_lam env l body in
+      MLlet(lname,def,body), ty
     | Lapp (f, args) ->
       let (comp_f, f_ty) = ml_of_lam env l f in
       let (arg_tys, ret_ty) = Term.decompose_prod_n_assum (Array.length args) f_ty in
@@ -1237,7 +1240,7 @@ let rec ml_of_lam (env : env) l t =
       let comp_arg = List.map (fun (arg, ty) ->
         if func_is_tactic && not (tactic_type ty)
         then begin
-          Feedback.msg_info (Pp.str "symbolize app");
+          (* Feedback.msg_info (Pp.str "symbolize app"); *)
           symbolize_lam env None arg
         end
         else begin
