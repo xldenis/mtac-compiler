@@ -56,7 +56,7 @@ let depends_on env sigma x =
   fold_outside (fun v deps->
     let (n, ot, ty) = Declaration.to_tuple v in
     if name_depends_on sigma deps ty ot then
-      Id.Set.add n deps
+      Id.Set.add n.binder_name deps
     else
       deps) env ~init:deps
 
@@ -104,8 +104,8 @@ let abs ?(mkprod=false) (env, sigma) a p x y =
         try
           let y' = mysubstn sigma (mkRel 1) rel y in
           if mkprod
-          then mkProd   (Names.Anonymous, a, y')
-          else mkLambda (Names.Anonymous, a, y')
+          then mkProd   (Context.anonR, a, y')
+          else mkLambda (Context.anonR, a, y')
         with _ ->
           Loc.raise (Omg "abstract ref error??")
       else
@@ -117,8 +117,8 @@ let abs ?(mkprod=false) (env, sigma) a p x y =
         let name = destVar sigma x in
         let y' = Vars.subst_vars [name] y in
         if mkprod
-        then mkProd   (Name name, a, y')
-        else mkLambda (Name name, a, y')
+        then mkProd   (Context.annotR (Name name), a, y')
+        else mkLambda (Context.annotR (Name name), a, y')
     else
       Loc.raise (Omg "error_abs_type")
   else
@@ -197,7 +197,7 @@ let rec interpret istate env sigma goal constr =
     | [a; _; f] when eq_constr sigma hs (Lazy.force mtacNu) ->
         let id  = fresh_name "nu" istate in
         let fx  = mkApp(f, [|mkVar id|]) in
-        let env = push_named (Context.Named.Declaration.LocalAssum ( id, a)) env in
+        let env = push_named (Context.Named.Declaration.LocalAssum (Context.annotR id, a)) env in
 
         begin
         match (interpret istate env sigma goal fx) with

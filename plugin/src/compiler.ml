@@ -86,8 +86,8 @@ let str_of_mtaclite v = match v with
   | Fix _ -> "fix"
   | Accu _ -> "accu"
 
-let print_constr arg = Feedback.msg_info (Printer.pr_econstr (EConstr.of_constr arg))
-
+(* let print_constr arg = Feedback.msg_info (Printer.pr_econstr (EConstr.of_constr arg))
+ *)
 (* Get the correct 'Type' used in Mtac *)
 let type_univ_of_constr env sigma v : types =
   let mtac  = EConstr.Unsafe.to_constr(Lazy.force MtacTerm.mtacMtac) in
@@ -160,7 +160,7 @@ and intrepret' istate env sigma v = begin match (Obj.magic v : mtaclite) with
 
     let id  = fresh_name "nu" istate in
     let var = mk_var_accu id in
-    let env = push_named (Context.Named.Declaration.LocalAssum ( id, ta)) env in
+    let env = push_named (Context.Named.Declaration.LocalAssum (Context.annotR id, ta)) env in
 
     interpret istate env sigma ((Obj.magic func) var)
   | Fix (a, b, s, i, f, x) ->
@@ -179,7 +179,7 @@ and intrepret' istate env sigma v = begin match (Obj.magic v : mtaclite) with
       let tta = type_univ_of_constr env sigma v in(* this is all to extract Type... because of universe problems *)
       let na = nf_val env sigma a tta in
       (* need to make a A -> Type fun !!! *)
-      let np = nf_val env sigma p (mkArrow na tta) in
+      let np = nf_val env sigma p (mkArrow na Sorts.Relevant tta) in
       let nx = nf_val env sigma x na in
 
       let reduced_type = Reductionops.whd_all env sigma (EConstr.of_constr (mkApp (np, [| nx |]))) in

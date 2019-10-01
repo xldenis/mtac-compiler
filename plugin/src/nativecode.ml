@@ -14,9 +14,9 @@ open Constr
 open Declarations
 open Util
 open Nativevalues
-open Nativeinstr
 open Nativelambda
 open Environ
+open Context
 
 [@@@ocaml.warning "-32-37"]
 
@@ -316,7 +316,7 @@ type primitive =
   | MLmagic
   | MLarrayget
   | Mk_empty_instance
-  | Coq_primitive of CPrimitives.t * (prefix * Constant.t) option
+  | Coq_primitive of CPrimitives.t * (prefix * pconstant) option
 
 let eq_primitive p1 p2 =
   match p1, p2 with
@@ -362,29 +362,28 @@ let primitive_hash = function
   | Mk_int -> 16
   | Mk_bool -> 17
   | Val_to_int -> 18
-  | Mk_I31_accu -> 19
-  | Decomp_uint -> 20
-  | Mk_meta -> 21
-  | Mk_evar -> 22
-  | MLand -> 23
-  | MLle -> 24
-  | MLlt -> 25
-  | MLinteq -> 26
-  | MLlsl -> 27
-  | MLlsr -> 28
-  | MLland -> 29
-  | MLlor -> 30
-  | MLlxor -> 31
-  | MLadd -> 32
-  | MLsub -> 33
-  | MLmul -> 34
-  | MLmagic -> 35
-  | Coq_primitive (prim, None) -> combinesmall 36 (CPrimitives.hash prim)
-  | Coq_primitive (prim, Some (prefix,kn)) ->
-     combinesmall 37 (combine3 (String.hash prefix) (Constant.hash kn) (CPrimitives.hash prim))
-  | Mk_proj -> 38
-  | MLarrayget -> 39
-  | Mk_empty_instance -> 40
+  | Mk_meta -> 19
+  | Mk_evar -> 20
+  | MLand -> 21
+  | MLle -> 22
+  | MLlt -> 23
+  | MLinteq -> 24
+  | MLlsl -> 25
+  | MLlsr -> 26
+  | MLland -> 27
+  | MLlor -> 28
+  | MLlxor -> 29
+  | MLadd -> 30
+  | MLsub -> 31
+  | MLmul -> 32
+  | MLmagic -> 33
+  | Coq_primitive (prim, None) -> combinesmall 34 (CPrimitives.hash prim)
+  | Coq_primitive (prim, Some (prefix,(kn,_))) ->
+     combinesmall 35 (combine3 (String.hash prefix) (Constant.hash kn) (CPrimitives.hash prim))
+  | Mk_proj -> 36
+  | MLarrayget -> 37
+  | Mk_empty_instance -> 38
+
 
 type mllambda =
   | MLlocal        of lname
@@ -400,7 +399,7 @@ type mllambda =
   | MLconstruct    of string * constructor * mllambda array
                    (* prefix, constructor name, arguments *)
   | MLint          of int
-  | MLuint         of Uint31.t
+  | MLuint         of Uint63.t
   | MLsetref       of string * mllambda
   | MLsequence     of mllambda * mllambda
   | MLarray        of mllambda array
@@ -466,7 +465,7 @@ let rec eq_mllambda gn1 gn2 n env1 env2 t1 t2 =
   | MLint i1, MLint i2 ->
       Int.equal i1 i2
   | MLuint i1, MLuint i2 ->
-      Uint31.equal i1 i2
+      Uint63.equal i1 i2
   | MLsetref (id1, ml1), MLsetref (id2, ml2) ->
       String.equal id1 id2 &&
       eq_mllambda gn1 gn2 n env1 env2 ml1 ml2
@@ -545,7 +544,7 @@ let rec hash_mllambda gn n env t =
   | MLint i ->
       combinesmall 11 i
   | MLuint i ->
-      combinesmall 12 (Uint31.to_int i)
+      combinesmall 12 (Uint63.hash i)
   | MLsetref (id, ml) ->
       let hid = String.hash id in
       let hml = hash_mllambda gn n env ml in
@@ -783,17 +782,16 @@ let empty_env env univ () =
   }
 
 let push_rel env id ty =
-  let local = fresh_lname id in
+  let local = fresh_lname id.binder_name in
   local, { env with
      env_rel = (MLlocal local, ty) :: env.env_rel;
      env_bound = env.env_bound + 1
    }
 
 let push_rels env ids =
-
   let lnames, env_rel =
     Array.fold_left (fun (names,env_rel) (id, ty) ->
-      let local = fresh_lname id in
+      let local = fresh_lname id.binder_name in
       (local::names, (MLlocal local, ty)::env_rel)) ([],env.env_rel) ids in
   Array.of_list (List.rev lnames), { env with
         env_rel = env_rel;
@@ -968,7 +966,7 @@ let merge_branches t =
 
 
 type prim_aux =
-  | PAprim of string * Constant.t * CPrimitives.t * prim_aux array
+  | PAprim of string * pconstant * CPrimitives.t * prim_aux array
   | PAml of mllambda
 
 let add_check cond args =
@@ -988,14 +986,14 @@ let extract_prim ml_of l =
   let rec aux l =
     match l with
     | Lprim(prefix,kn,p,args) ->
-  let args = Array.map aux args in
-  cond := add_check !cond args;
-  PAprim(prefix,kn,p,args)
+      let args = Array.map aux args in
+      cond := add_check !cond args;
+      PAprim(prefix,kn,p,args)
     | Lrel _ | Lvar _ | Luint _ | Lval _ | Lconst _ -> PAml (ml_of l)
     | _ ->
-  let x = fresh_lname Anonymous in
-  decl := (x,ml_of l)::!decl;
-  PAml (MLlocal x) in
+      let x = fresh_lname Anonymous in
+      decl := (x,ml_of l)::!decl;
+      PAml (MLlocal x) in
   let res = aux l in
   (!decl, !cond, res)
 
@@ -1005,7 +1003,7 @@ let to_int v =
   match v with
   | MLapp(MLprimitive Mk_uint, t) ->
      begin match t.(0) with
-     | MLuint i -> MLint (Uint31.to_int i)
+     | MLuint i -> MLint (Uint63.hash i)
      | _ -> MLapp(MLprimitive Val_to_int, [|v|])
      end
   | MLapp(MLprimitive Mk_int, t) -> t.(0)
@@ -1016,62 +1014,50 @@ let of_int v =
   | MLapp(MLprimitive Val_to_int, t) -> t.(0)
   | _ -> MLapp(MLprimitive Mk_int,[|v|])
 
+let cast_to_int v =
+  match v with
+  | MLint _ -> v
+  | _ -> MLapp(MLprimitive Val_to_int, [|v|])
+
+
 let compile_prim decl cond paux =
-(*
-  let args_to_int args =
-    for i = 0 to Array.length args - 1 do
-      args.(i) <- to_int args.(i)
-    done;
-    args in
- *)
+
   let rec opt_prim_aux paux =
     match paux with
-    | PAprim(prefix, kn, op, args) ->
-  let args = Array.map opt_prim_aux args in
-  app_prim (Coq_primitive(op,None)) args
-(*
-    TODO: check if this inlining was useful
-  begin match op with
-        | Int31lt ->
-           if Sys.word_size = 64 then
-             app_prim Mk_bool [|(app_prim MLlt (args_to_int args))|]
-           else app_prim (Coq_primitive (CPrimitives.Int31lt,None)) args
-        | Int31le ->
-           if Sys.word_size = 64 then
-             app_prim Mk_bool [|(app_prim MLle (args_to_int args))|]
-           else app_prim (Coq_primitive (CPrimitives.Int31le, None)) args
-  | Int31lsl  -> of_int (mk_lsl (args_to_int args))
-  | Int31lsr  -> of_int (mk_lsr (args_to_int args))
-  | Int31land -> of_int (mk_land (args_to_int args))
-  | Int31lor  -> of_int (mk_lor (args_to_int args))
-  | Int31lxor -> of_int (mk_lxor (args_to_int args))
-  | Int31add  -> of_int (mk_add (args_to_int args))
-  | Int31sub  -> of_int (mk_sub (args_to_int args))
-  | Int31mul  -> of_int (mk_mul (args_to_int args))
-  | _ -> app_prim (Coq_primitive(op,None)) args
-  end *)
+    | PAprim(_prefix, _kn, op, args) ->
+      let args = Array.map opt_prim_aux args in
+      app_prim (Coq_primitive(op,None)) args
     | PAml ml -> ml
+
   and naive_prim_aux paux =
     match paux with
     | PAprim(prefix, kn, op, args) ->
-        app_prim (Coq_primitive(op, Some (prefix, kn))) (Array.map naive_prim_aux args)
-    | PAml ml -> ml in
+      app_prim (Coq_primitive(op, Some (prefix,kn))) (Array.map naive_prim_aux args)
+    | PAml ml -> ml
+  in
 
   let compile_cond cond paux =
     match cond with
     | [] -> opt_prim_aux paux
     | [c1] ->
-        MLif(app_prim Is_int [|c1|], opt_prim_aux paux, naive_prim_aux paux)
+      MLif(app_prim Is_int [|c1|], opt_prim_aux paux, naive_prim_aux paux)
     | c1::cond ->
-  let cond =
-    List.fold_left
-      (fun ml c -> app_prim MLland [| ml; to_int c|])
-            (app_prim MLland [|to_int c1; MLint 0 |]) cond in
-        let cond = app_prim MLmagic [|cond|] in
-  MLif(cond, naive_prim_aux paux, opt_prim_aux paux) in
+      let cond =
+        List.fold_left
+          (fun ml c -> app_prim MLland [| ml; cast_to_int c|])
+          (app_prim MLland [| cast_to_int c1; MLint 0 |]) cond in
+      let cond = app_prim MLmagic [|cond|] in
+      MLif(cond, naive_prim_aux paux, opt_prim_aux paux) in
+
   let add_decl decl body =
     List.fold_left (fun body (x,d) -> MLlet(x,d,body)) body decl in
-  add_decl decl (compile_cond cond paux)
+
+  (* The optimizations done for checking if integer values are closed are valid
+     only on 64-bit architectures. So on 32-bit architectures, we fall back to less optimized checks. *)
+  if max_int = 1073741823 (* 32-bits *) then
+    add_decl decl (naive_prim_aux paux)
+  else
+    add_decl decl (compile_cond cond paux)
 
 let ml_of_instance instance u =
   let ml_of_level l =
@@ -1220,11 +1206,11 @@ let rec ml_of_lam (env : env) l t =
       let (codom, codom_ty) = ml_of_lam env l codom in
       let n = get_prod_name codom in
       let i = push_symbol (SymbName n) in
-      MLapp(MLprimitive Mk_prod, [|get_name_code i;dom;codom|]), (mkProd (n, dom_ty, codom_ty))
+      MLapp(MLprimitive Mk_prod, [|get_name_code i;dom;codom|]), (mkProd (make_annot n Sorts.Relevant, dom_ty, codom_ty))
     | Llam(ids, body) ->
         let lnames,env = push_rels env (ids) in
         let (body', bty) = ml_of_lam env l body in
-        let ty = Array.fold_right (fun (id, ty) acc -> mkProd (Anonymous, ty, acc)) ids bty in
+        let ty = Array.fold_right (fun (id, ty) acc -> mkProd (anonR, ty, acc)) ids bty in
         MLlam(lnames, body'), ty
     | Llet(id, ty, def,body) ->
       let (def, _) = ml_of_lam env l def in
@@ -1656,7 +1642,7 @@ let rec list_of_mp acc = function
 let list_of_mp mp = list_of_mp [] mp
 
 let string_of_kn kn =
-  let (mp,dp,l) = KerName.repr kn in
+  let (mp,l) = KerName.repr kn in
   let mp = list_of_mp mp in
   String.concat "_" mp ^ "_" ^ string_of_label l
 
@@ -1741,7 +1727,7 @@ let pp_mllam fmt l =
         Format.fprintf fmt "@[(Obj.magic (%s%a) : Nativevalues.t)@]"
           (string_of_construct prefix c) pp_cargs args
     | MLint i -> pp_int fmt i
-    | MLuint i -> Format.fprintf fmt "(Uint31.of_int %a)" pp_int (Uint31.to_int i)
+    | MLuint i -> Format.fprintf fmt "(Uint63.of_int %a)" pp_int (Uint63.hash i)
     | MLsetref (s, body) ->
   Format.fprintf fmt "@[%s@ :=@\n %a@]" s pp_mllam body
     | MLsequence(l1,l2) ->
@@ -1882,9 +1868,9 @@ let pp_mllam fmt l =
     | Mk_empty_instance -> Format.fprintf fmt "Univ.Instance.empty"
     | Coq_primitive (op,None) ->
        Format.fprintf fmt "no_check_%s" (CPrimitives.to_string op)
-    | Coq_primitive (op, Some (prefix,kn)) ->
+    | Coq_primitive (op, Some (prefix,(c,_))) ->
         Format.fprintf fmt "%s %a" (CPrimitives.to_string op)
-           pp_mllam (MLglobal (Gconstant (prefix, kn)))
+                       pp_mllam (MLglobal (Gconstant (prefix,c)))
   in
   Format.fprintf fmt "@[%a@]" pp_mllam l
 
@@ -1993,17 +1979,13 @@ and compile_named env sigma univ auxdefs id =
       Glet(Gnamed id, MLprimitive (Mk_var id))::auxdefs
 
 let compile_constant env sigma prefix ~interactive con cb =
-     let no_univs =
-       match cb.const_universes with
-       | Monomorphic_const _ -> true
-       | Polymorphic_const ctx -> Int.equal (Univ.AUContext.size ctx) 0
-     in
+    let no_univs = 0 = Univ.AUContext.size (Declareops.constant_polymorphic_context cb) in
     begin match cb.const_body with
     | Def t ->
       let t = Mod_subst.force_constr t in
       let code = lambda_of_constr env sigma t in
       if !Flags.debug then Feedback.msg_debug (Pp.str "Generated lambda code");
-      let is_lazy = is_lazy env prefix t in
+      let is_lazy = is_lazy t in
       let code = if is_lazy then mk_lazy code else code in
       let name =
         if interactive then LinkedInteractive prefix
@@ -2087,11 +2069,11 @@ let compile_mind mb mind stack =
          (MLconstruct("", c, Array.map (fun id -> MLlocal id) args)))::acc
     in
     let constructors = Array.fold_left_i add_construct [] ob.mind_reloc_tbl in
-    let add_proj proj_arg acc pb =
+    let add_proj proj_arg acc _pb =
       let tbl = ob.mind_reloc_tbl in
       (* Building info *)
       let ci = { ci_ind = ind; ci_npar = nparams;
-                 ci_cstr_nargs = [|0|];
+                 ci_cstr_nargs = [|0|]; ci_relevance = ob.mind_relevance;
                  ci_cstr_ndecls = [||] (*FIXME*);
                  ci_pp_info = { ind_tags = []; cstr_tags = [||] (*FIXME*); style = RegularStyle } } in
       let asw = { asw_ind = ind; asw_prefix = ""; asw_ci = ci;
@@ -2103,7 +2085,7 @@ let compile_mind mb mind stack =
       let cargs = Array.init arity
         (fun i -> if Int.equal i proj_arg then Some ci_uid else None)
       in
-      let i = push_symbol (SymbProj (ind, j)) in
+      let i = push_symbol (SymbProj (ind, proj_arg)) in
       let accu = MLapp (MLprimitive Cast_accu, [|MLlocal cf_uid|]) in
       let accu_br = MLapp (MLprimitive Mk_proj, [|get_proj_code i;accu|]) in
       let code = MLmatch(asw,MLlocal cf_uid,accu_br,[|[((ind,1),cargs)],MLlocal ci_uid|]) in
@@ -2114,7 +2096,7 @@ let compile_mind mb mind stack =
     let projs = match mb.mind_record with
     | NotRecord | FakeRecord -> []
     | PrimRecord info ->
-      let _, _, pbs = info.(i) in
+      let _, _, _, pbs = info.(i) in
       Array.fold_left_i add_proj [] pbs
     in
     projs @ constructors @ gtype :: accu :: stack
@@ -2284,12 +2266,12 @@ let compile_tactic_monad_arg env sigma gl t =
   let code = Nativelambda.lambda_of_constr env sigma t in
   compile_with_fv env sigma None gl None code
 
-
+(*
 let decompose_prod t =
   let (name,dom,codom as res) = destProd t in
-  match name with
+  match name.binder_name with
   | Anonymous -> (Name (Id.of_string "x"),dom,codom)
-  | _ -> res
+  | _ -> res *)
 
 let evars_of_evar_map sigma =
   { Nativelambda.evars_val = Evd.existential_opt_value0 sigma;
@@ -2317,7 +2299,7 @@ let compile_tactic env (sigma : Evd.evar_map) prefix (constr : EConstr.t) =
     MLapp (MLglobal (Ginternal "get_symbols"),
       [|MLglobal (Ginternal "()")|])) in
 
-  let env' = empty_env env None () in
+  (* let env' = empty_env env None () in *)
   let code = lambda_of_constr env sigma_evars constr' in
   let (gl,code) = compile_with_fv env sigma_evars None gl None code in
 

@@ -17,6 +17,6 @@ let unify sigma env evars t1 t2  : bool * Evd.evar_map =
     (* it appears that the_conv_x is the way to actually run the coq unification engine *)
     let unif_sigma = Evarconv.the_conv_x env t2 t1 sigma in
     (* this apparently attempts to apply a bunch a heuristics ?  *)
-    let remaining  = Evarconv.consider_remaining_unif_problems env unif_sigma in
+    let remaining  = Evarconv.solve_unif_constraints_with_heuristics env unif_sigma in
     (List.length (find_pbs remaining evars) = 0, unif_sigma)
   with _ -> (false, sigma)

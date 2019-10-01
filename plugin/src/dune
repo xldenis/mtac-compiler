@@ -1,12 +1,11 @@
 (library
   (name mtaclite)
   (synopsis "MTAC-lite plugin")
-  (flags :standard)
   (libraries coq.plugins.ltac)
-  (public_name mtaclite.plugin))
+  (public_name mtaclite.plugin)
+  (flags :standard -rectypes -w -20-37-26-27-32-28-33-3-8-50)
+  )
 
-  (rule
-    (targets mtaclite.ml)
-    (deps (:pp-file mtaclite.mlg))
-    (action (run coqpp %{pp-file})))
+
+  (coq.pp (modules mtaclite))
 

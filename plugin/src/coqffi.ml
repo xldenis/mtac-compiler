@@ -2,7 +2,7 @@ open EConstr
 open Reductionops
 
 let find_constant dir s = EConstr.of_constr (
-  Universes.constr_of_global (Coqlib.find_reference "mtac_plugin" dir s)
+  UnivGen.constr_of_global (Coqlib.find_reference "mtac_plugin" dir s)
 )
 
 module CoqUnit = struct
