@@ -24,6 +24,11 @@ open Nativevalues
 open Context.Rel.Declaration
 
 open Nativenorm
+
+let evars_of_evar_map sigma =
+  { Nativelambda.evars_val = Evd.existential_opt_value0 sigma;
+    Nativelambda.evars_metas = Evd.meta_type0 sigma }
+
 (* The actual code *)
 
 open Coqffi
