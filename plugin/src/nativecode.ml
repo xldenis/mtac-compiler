@@ -1077,6 +1077,7 @@ open Coqffi
 
 open Pp
 open Names
+module RelDecl = Context.Rel.Declaration
 
 (* Symbolic compilation of a `lambda`, turns globals into accumulators *)
 let rec symbolize_lam (env : env) l t =
@@ -1191,8 +1192,6 @@ let tactic_type ty =
   let mnd, _ = decompose_app res in
   let mtac  = EConstr.Unsafe.to_constr(Lazy.force MtacTerm.mtacMtac) in
   Constr.equal mtac mnd
-
-module RelDecl = Context.Rel.Declaration
 
 let rec ml_of_lam (env : env) l t =
   begin match t with
