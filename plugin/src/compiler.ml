@@ -19,7 +19,7 @@ open Declarations
 open Names
 open Inductive
 open Util
-open Nativecode
+open Nativelite
 open Nativevalues
 open Context.Rel.Declaration
 

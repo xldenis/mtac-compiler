@@ -7,7 +7,7 @@
 (*         *     GNU Lesser General Public License Version 2.1          *)
 (*         *     (see LICENSE file for the text of the license)         *)
 (************************************************************************)
-open Nativecode
+open Nativelite
 
 (** This file provides facilities to access OCaml compiler and dynamic linker,
 used by the native compiler. *)

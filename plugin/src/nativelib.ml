@@ -9,7 +9,7 @@
 (************************************************************************)
 open Util
 open Nativevalues
-open Nativecode
+open Nativelite
 open CErrors
 open Envars
 
