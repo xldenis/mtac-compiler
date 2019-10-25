@@ -262,8 +262,50 @@ let tactic_type ty =
   let mtac  = EConstr.Unsafe.to_constr(Lazy.force MtacTerm.mtacMtac) in
   Constr.equal mtac mnd
 
+let pp_head l =
+  match l with
+  | Lrel _ -> "Lrel"
+  | Lvar _ -> "Lvar"
+  | Lmeta _ -> "Lmeta"
+  | Levar _ -> "Levar"
+  | Lprod _ -> "Lprod"
+  | Llam _ -> "Llam"
+  | Lrec _ -> "Lrec"
+  | Llet _ -> "Llet"
+  | Lapp _ -> "Lapp"
+  | Lconst _ -> "Lconst"
+  | Lproj _ -> "Lproj"
+  | Lprim _ -> "Lprim"
+  | Lcase _ -> "Lcase"
+  | Lif _ -> "Lif"
+  | Lfix _ -> "Lfix"
+  | Lcofix _ -> "Lcofix"
+  | Lmakeblock _ -> "Lmakeblock"
+  | Lconstruct _ -> "Lconstruct"
+  | Luint _ -> "Luint"
+  | Lval _ -> "Lval"
+  | Lsort _ -> "Lsort"
+  | Lind _ -> "Lind"
+  | Llazy _ -> "Llazy"
+  | Lforce _ -> "Lforce"
+
+let push_global gn t =
+  try HashtblGlobal.find global_tbl t
+  with Not_found ->
+    (global_stack := t :: !global_stack;
+
+    HashtblGlobal.add global_tbl t gn; Feedback.msg_info (Pp.str "HERE2") ;
+gn)
+
+let push_global_case gn params annot a accu bs =
+  Feedback.msg_info (Pp.str "HERE") ;
+  let x = push_global gn (Gletcase (gn, params, annot, a, accu, bs)) in
+  Feedback.msg_info (Pp.str "HERE3") ; x
+
+
 let rec ml_of_lam (env : env) l t =
-  begin match t with
+  (* Feedback.msg_info (str (pp_head t)) ; *)
+  let x = begin match t with
     | Lrel(id ,i) ->
         fst (get_rel env (RelDecl.get_name id) i), (RelDecl.get_type id)
     | Lvar _ -> anomaly (Pp.str "Lvar")
@@ -302,7 +344,7 @@ let rec ml_of_lam (env : env) l t =
         end
       ) paired in
       MLapp(comp_f, Array.of_list comp_arg), ret_ty
-    | Lmakeblock (prefix,(cn,u),cty, _,args) ->
+    | Lmakeblock (prefix,(cn,u), cty, _,args) ->
         let ind = inductive_of_constructor cn in
         let indspec = Inductive.lookup_mind_specif env.env_env ind in
         let cons_ty = Inductive.type_of_constructor (cn, u) indspec in
@@ -310,11 +352,10 @@ let rec ml_of_lam (env : env) l t =
         let (arg_tys, ret_ty) = Term.decompose_prod cons_ty in
         let arg_tys = Array.of_list (List.rev arg_tys) in
         let diff = Array.length arg_tys - Array.length args in
-
         let arg_tys = Array.init (Array.length args) (fun i -> arg_tys.(diff + i)) in
+        (* Feedback.msg_info (str "mllam 5") ; *)
         let args = Array.map2 (fun arg ty ->
           let ty = snd ty in
-
           if func_is_tactic && not (tactic_type ty)
           then begin
             symbolize_lam env None arg
@@ -323,6 +364,7 @@ let rec ml_of_lam (env : env) l t =
             let (x, _) = ml_of_lam env None arg in x
           end
         ) (args) (arg_tys) in
+        (* Feedback.msg_info (str "mllam 6") ; *)
 
         (* let args = (Array.map (ml_of_lam env l) args) in *)
         (* let args = (Array.map fst args) in *)
@@ -361,21 +403,28 @@ let rec ml_of_lam (env : env) l t =
       let (fvn, fvr) = !(env_c.env_named), !(env_c.env_urel) in
       let cn_fv = mkMLapp (MLglobal cn) (fv_args (Obj.magic env_c) fvn fvr) in
          (* remark : the call to fv_args does not add free variables in env_c *)
+
       let i = push_symbol (SymbMatch annot) in
+      Feedback.msg_info (Pp.str "case 3") ;
       let accu =
         MLapp(MLprimitive Mk_sw,
               [| get_match_code i; MLapp (MLprimitive Cast_accu, [|la_uid|]);
            pred;
            cn_fv |]) in
-      let cn = push_global_case cn (Array.append (fv_params (Obj.magic env_c)) [|a_uid|])
-        annot la_uid accu (merge_branches bs)
-      in
+      Feedback.msg_info (Pp.str "case 3.1") ;
+      let omg = Array.append (fv_params (Obj.magic env_c)) [|a_uid|] in
+      let omg2 = merge_branches bs in
+      Feedback.msg_info (Pp.str "case 3.2") ;
+      let cn = push_global_case cn (omg) annot la_uid accu (omg2) in
+      Feedback.msg_info (Pp.str "case 4") ;
+
       (* Final result *)
       let (arg, _) = ml_of_lam env l a in
       let force =
         if annot.asw_finite
         then arg
         else mkForceCofix annot.asw_prefix annot.asw_ind arg in
+      Feedback.msg_info (Pp.str "case e") ;
       mkMLapp (MLapp (MLglobal cn, fv_args (Obj.magic env) fvn fvr)) [|force|], b_ty
     | Lif _ -> anomaly (Pp.str "Lif")
     | Lfix ((rec_pos, inds, start), (ids, tt, tb)) ->
@@ -481,7 +530,9 @@ let rec ml_of_lam (env : env) l t =
         mkMLapp (MLglobal (Gind (prefix, ind))) uargs, ty
     | Llazy -> anomaly (Pp.str "Llazy")
     | Lforce -> anomaly (Pp.str "Lforce")
-  end
+  end in
+  (* Feedback.msg_info (Pp.str ("end" ^ pp_head t)) ;  *)
+  x
 
 
 (*
@@ -495,10 +546,12 @@ let mllambda_of_lambda env univ auxdefs l t =
   let fv_rel = !(env.env_urel) in
   let fv_named = !(env.env_named) in
   (* build the free variables *)
+
   let get_lname (_,t) =
    match t with
    | MLlocal x -> x
    | _ -> assert false in
+
   let params =
     List.append (List.map get_lname fv_rel) (List.map get_lname fv_named) in
   if List.is_empty params then
@@ -789,17 +842,23 @@ let evars_of_evar_map sigma =
 let compile_tactic env (sigma : Evd.evar_map) prefix (constr : EConstr.t) =
   (* check that result of tactic application is mtac b *)
   (* unfold application *)
+  Feedback.msg_info (Pp.str "omg 1");
+
   let sigma_evars = evars_of_evar_map sigma in
   let constr' = EConstr.Unsafe.to_constr constr in
   clear_symbols ();
   clear_global_tbl ();
+  Feedback.msg_info (Pp.str "omg 2");
 
   let gl, (mind_updates, const_updates) =
     let init = ([], empty_updates) in
     compile_deps env sigma_evars prefix ~interactive:true init constr'
   in
+  Feedback.msg_info (Pp.str "omg 3");
 
   let full_ty = Retyping.get_type_of env sigma constr in
+  Feedback.msg_info (Pp.str "omg 4");
+
   if monadic_type (EConstr.Unsafe.to_constr full_ty)
   then ()
   else anomaly (Pp.str "not a tactic type!") ;

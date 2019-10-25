@@ -232,7 +232,10 @@ let compile env sigma _ constr =
   Feedback.msg_info (str "starting compilation");
 
   let ml_filename, prefix = Nativelib.get_ml_filename () in
+  Feedback.msg_info (Pp.str "omMGOMGOMG");
+
   let code, upd = compile_tactic (env) ( sigma) prefix constr in
+  Feedback.msg_info (str "starting compilation 2");
 
   match compile ml_filename code ~profile:false with
     | true, fn ->

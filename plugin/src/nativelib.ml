@@ -27,7 +27,7 @@ let open_header = ["Nativevalues";
                    "Nativeconv";
                    "Mtaclite__Unify";
                    "Declaremods"]
-let open_header = List.map mk_open open_header
+let open_header = List.map Nativecode.mk_open open_header
 
 (* Directory where compiled files are stored *)
 let output_dir = ".coq-native"
@@ -57,7 +57,7 @@ let write_ml_code fn ?(header=[]) code =
   let header = open_header@header in
   let ch_out = open_out fn in
   let fmt = Format.formatter_of_out_channel ch_out in
-  List.iter (pp_global fmt) (header@code);
+  List.iter (Nativecode.pp_global fmt) (header@code);
   close_out ch_out
 
 let warn_native_compiler_failed =
