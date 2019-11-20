@@ -237,7 +237,7 @@ let compile env sigma _ constr =
   Feedback.msg_info (str "HELLO") ;
 
   (* do the actual readback *)
-  let (redback : Constr.t) = Nf.nf_val env' sigma' res (EConstr.Unsafe.to_constr arg) in
+  let (redback : Constr.t) = Nativenorm.nf_val env' sigma' res (EConstr.Unsafe.to_constr arg) in
 
   let t3 = Sys.time () in
   Feedback.msg_info (str (Format.sprintf "Readback done in %.5f@." (t3 -. t2))) ;
