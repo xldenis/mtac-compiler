@@ -84,4 +84,5 @@ module MtacTerm = struct
   let mtacAbs   = lazy (find_constant path "abs"  )
 
   let mtacMtac  = lazy (find_constant path "Mtac" )
+  let mtacLazy = lazy (find_constant path "callType")
 end

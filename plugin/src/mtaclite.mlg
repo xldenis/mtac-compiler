@@ -11,6 +11,7 @@ open Term
 open Names
 open Coqlib
 open Proofview.Notations
+open Monad
 (* $$ *)
 
 open Run

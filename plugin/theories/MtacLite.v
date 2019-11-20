@@ -4,6 +4,8 @@ Require Import Strings.String.
 
 Module MtacLite.
 
+Definition callType {A : Type} (a : A) := a.
+
 Inductive Mtac : Type -> Prop :=
   | print : string -> Mtac unit
   | ret   : forall {A}, A -> Mtac A

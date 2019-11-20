@@ -14,9 +14,10 @@ let rec tag_calls env sigma (c : constr) : constr =
     | Const constr ->
       let ty = Retyping.get_type_of env sigma (c) in
       if monadic_type sigma ty then
-        of_kind (App (of_kind (Const constr), args'))
+        mkApp (f, args')
       else
-        Obj.magic ()
+        let lazy_call = mkApp (Lazy.force MtacTerm.mtacLazy, [|ty; f|]) in
+        mkApp (lazy_call, args')
     | f -> let f' = tag_calls env sigma (of_kind f) in
         mkApp (f', args')
     end
