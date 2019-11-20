@@ -18,8 +18,9 @@ Definition mixed_calls (y : nat) :=
   ret (y + y).
 
 Goal True.
+  compile (ret I) as x.
   compile (tactic_call 0) as v.
-  compile (pure_call 0) as v2.
+  (*compile (pure_call 0) as v2.*)
   compile (mixed_calls 0) as v3.
   compile (ret (1 + 2)) as v4.
   compile (ret (1 + 2 + 3)) as v5.

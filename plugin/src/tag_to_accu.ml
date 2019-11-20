@@ -106,9 +106,11 @@ let rec tag_to_accu env sigma (l : lambda) =
                   | a -> a
                   end in
 
-      Lapp(func', Array.sub args 2 (Array.length args - 2))
+      let args' = Array.map (tag_to_accu env sigma) (Array.sub args 2 (Array.length args - 2)) in
+      Lapp(func', args')
     else
-      Lapp (Lconst (p, (c, i)), args)
+      let args' = Array.map (tag_to_accu env sigma) args in
+      Lapp (Lconst (p, (c, i)), args')
   (* | Lapp (func, body) -> Lapp(func, Array.of_list (scan_args env sigma (Array.to_list body))) *)
   | otherwise -> map_lam_with_binders (fun n x -> x) (fun _ x -> tag_to_accu env sigma x) 0 otherwise
   end
