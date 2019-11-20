@@ -24,4 +24,5 @@ Goal True.
   compile (ret (1 + 2)) as v4.
   compile (ret (1 + 2 + 3)) as v5.
   compile (bind (ret (1 + 2)) (fun x => ret x)) as v6.
+  compile (ret ((id Nat.add) 1 2 )) as v7.
 Admitted.

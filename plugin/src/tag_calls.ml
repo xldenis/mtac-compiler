@@ -12,11 +12,12 @@ let rec tag_calls env sigma (c : constr) : constr =
     let args' = Array.map (tag_calls env sigma) args in
     begin match kind sigma f with
     | Const constr ->
-      let ty = Retyping.get_type_of env sigma (c) in
+      let ty = Retyping.get_type_of env sigma c in
       if monadic_type sigma ty then
         mkApp (f, args')
       else
-        let lazy_call = mkApp (Lazy.force MtacTerm.mtacLazy, [|ty; f|]) in
+        let fty = Retyping.get_type_of env sigma f in
+        let lazy_call = mkApp (Lazy.force MtacTerm.mtacLazy, [|fty; f|]) in
         mkApp (lazy_call, args')
     | f -> let f' = tag_calls env sigma (of_kind f) in
         mkApp (f', args')
