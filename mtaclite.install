@@ -1,0 +1,62 @@
+lib: [
+  "_build/install/default/lib/mtaclite/META"
+  "_build/install/default/lib/mtaclite/dune-package"
+  "_build/install/default/lib/mtaclite/opam"
+  "_build/install/default/lib/mtaclite/plugin/compiler.ml" {"plugin/compiler.ml"}
+  "_build/install/default/lib/mtaclite/plugin/coqffi.ml" {"plugin/coqffi.ml"}
+  "_build/install/default/lib/mtaclite/plugin/lambda_printer.ml" {"plugin/lambda_printer.ml"}
+  "_build/install/default/lib/mtaclite/plugin/monad.ml" {"plugin/monad.ml"}
+  "_build/install/default/lib/mtaclite/plugin/mtaclite.a" {"plugin/mtaclite.a"}
+  "_build/install/default/lib/mtaclite/plugin/mtaclite.cma" {"plugin/mtaclite.cma"}
+  "_build/install/default/lib/mtaclite/plugin/mtaclite.cmi" {"plugin/mtaclite.cmi"}
+  "_build/install/default/lib/mtaclite/plugin/mtaclite.cmt" {"plugin/mtaclite.cmt"}
+  "_build/install/default/lib/mtaclite/plugin/mtaclite.cmx" {"plugin/mtaclite.cmx"}
+  "_build/install/default/lib/mtaclite/plugin/mtaclite.cmxa" {"plugin/mtaclite.cmxa"}
+  "_build/install/default/lib/mtaclite/plugin/mtaclite.cmxs" {"plugin/mtaclite.cmxs"}
+  "_build/install/default/lib/mtaclite/plugin/mtaclite.ml" {"plugin/mtaclite.ml"}
+  "_build/install/default/lib/mtaclite/plugin/mtaclite__.cmi" {"plugin/mtaclite__.cmi"}
+  "_build/install/default/lib/mtaclite/plugin/mtaclite__.cmt" {"plugin/mtaclite__.cmt"}
+  "_build/install/default/lib/mtaclite/plugin/mtaclite__.cmx" {"plugin/mtaclite__.cmx"}
+  "_build/install/default/lib/mtaclite/plugin/mtaclite__.ml" {"plugin/mtaclite__.ml"}
+  "_build/install/default/lib/mtaclite/plugin/mtaclite__Compiler.cmi" {"plugin/mtaclite__Compiler.cmi"}
+  "_build/install/default/lib/mtaclite/plugin/mtaclite__Compiler.cmt" {"plugin/mtaclite__Compiler.cmt"}
+  "_build/install/default/lib/mtaclite/plugin/mtaclite__Compiler.cmx" {"plugin/mtaclite__Compiler.cmx"}
+  "_build/install/default/lib/mtaclite/plugin/mtaclite__Coqffi.cmi" {"plugin/mtaclite__Coqffi.cmi"}
+  "_build/install/default/lib/mtaclite/plugin/mtaclite__Coqffi.cmt" {"plugin/mtaclite__Coqffi.cmt"}
+  "_build/install/default/lib/mtaclite/plugin/mtaclite__Coqffi.cmx" {"plugin/mtaclite__Coqffi.cmx"}
+  "_build/install/default/lib/mtaclite/plugin/mtaclite__Lambda_printer.cmi" {"plugin/mtaclite__Lambda_printer.cmi"}
+  "_build/install/default/lib/mtaclite/plugin/mtaclite__Lambda_printer.cmt" {"plugin/mtaclite__Lambda_printer.cmt"}
+  "_build/install/default/lib/mtaclite/plugin/mtaclite__Lambda_printer.cmx" {"plugin/mtaclite__Lambda_printer.cmx"}
+  "_build/install/default/lib/mtaclite/plugin/mtaclite__Monad.cmi" {"plugin/mtaclite__Monad.cmi"}
+  "_build/install/default/lib/mtaclite/plugin/mtaclite__Monad.cmt" {"plugin/mtaclite__Monad.cmt"}
+  "_build/install/default/lib/mtaclite/plugin/mtaclite__Monad.cmx" {"plugin/mtaclite__Monad.cmx"}
+  "_build/install/default/lib/mtaclite/plugin/mtaclite__Nativelite.cmi" {"plugin/mtaclite__Nativelite.cmi"}
+  "_build/install/default/lib/mtaclite/plugin/mtaclite__Nativelite.cmt" {"plugin/mtaclite__Nativelite.cmt"}
+  "_build/install/default/lib/mtaclite/plugin/mtaclite__Nativelite.cmx" {"plugin/mtaclite__Nativelite.cmx"}
+  "_build/install/default/lib/mtaclite/plugin/mtaclite__Run.cmi" {"plugin/mtaclite__Run.cmi"}
+  "_build/install/default/lib/mtaclite/plugin/mtaclite__Run.cmt" {"plugin/mtaclite__Run.cmt"}
+  "_build/install/default/lib/mtaclite/plugin/mtaclite__Run.cmti" {"plugin/mtaclite__Run.cmti"}
+  "_build/install/default/lib/mtaclite/plugin/mtaclite__Run.cmx" {"plugin/mtaclite__Run.cmx"}
+  "_build/install/default/lib/mtaclite/plugin/mtaclite__Tag_calls.cmi" {"plugin/mtaclite__Tag_calls.cmi"}
+  "_build/install/default/lib/mtaclite/plugin/mtaclite__Tag_calls.cmt" {"plugin/mtaclite__Tag_calls.cmt"}
+  "_build/install/default/lib/mtaclite/plugin/mtaclite__Tag_calls.cmx" {"plugin/mtaclite__Tag_calls.cmx"}
+  "_build/install/default/lib/mtaclite/plugin/mtaclite__Tag_to_accu.cmi" {"plugin/mtaclite__Tag_to_accu.cmi"}
+  "_build/install/default/lib/mtaclite/plugin/mtaclite__Tag_to_accu.cmt" {"plugin/mtaclite__Tag_to_accu.cmt"}
+  "_build/install/default/lib/mtaclite/plugin/mtaclite__Tag_to_accu.cmx" {"plugin/mtaclite__Tag_to_accu.cmx"}
+  "_build/install/default/lib/mtaclite/plugin/mtaclite__Unify.cmi" {"plugin/mtaclite__Unify.cmi"}
+  "_build/install/default/lib/mtaclite/plugin/mtaclite__Unify.cmt" {"plugin/mtaclite__Unify.cmt"}
+  "_build/install/default/lib/mtaclite/plugin/mtaclite__Unify.cmx" {"plugin/mtaclite__Unify.cmx"}
+  "_build/install/default/lib/mtaclite/plugin/nativelite.ml" {"plugin/nativelite.ml"}
+  "_build/install/default/lib/mtaclite/plugin/run.ml" {"plugin/run.ml"}
+  "_build/install/default/lib/mtaclite/plugin/run.mli" {"plugin/run.mli"}
+  "_build/install/default/lib/mtaclite/plugin/tag_calls.ml" {"plugin/tag_calls.ml"}
+  "_build/install/default/lib/mtaclite/plugin/tag_to_accu.ml" {"plugin/tag_to_accu.ml"}
+  "_build/install/default/lib/mtaclite/plugin/unify.ml" {"plugin/unify.ml"}
+]
+lib_root: [
+  "_build/install/default/lib/coq/user-contrib/MtacLite/MtacLite.vo" {"coq/user-contrib/MtacLite/MtacLite.vo"}
+  "_build/install/default/lib/coq/user-contrib/MtacLite/mtaclite.cmxs" {"coq/user-contrib/MtacLite/mtaclite.cmxs"}
+]
+doc: [
+  "_build/install/default/doc/mtaclite/README.md"
+]
