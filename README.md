@@ -6,13 +6,14 @@ It explores the compilation of typed tactic languages in Coq, with the intent of
 
 ## Building
 
-This the plugin contained within the `plugin/` subdirectory is built using `dune`. However, at the time of writing the latest release of `dune` does not yet support building Coq projects. To build a Coq project, you need a patched version of `dune`:
+This project is built using the `dune` build tool. 
+
+It depends on a modified version of coq which can be installed by running
 
 ```
-opam pin add dune https://github.com/ejgallego/dune.git#coq
+opam pin coq https://github.com/xldenis/coq.git#extend-native-compil
 ```
 
-Once this version of `dune` is installed a `dune build` or `dune watch` should suffice to build the project.
 
 # Compiling Tactics
 
