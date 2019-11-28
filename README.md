@@ -14,6 +14,19 @@ opam pin add dune https://github.com/ejgallego/dune.git#coq
 
 Once this version of `dune` is installed a `dune build` or `dune watch` should suffice to build the project.
 
+# Compiling Tactics
+
+Tactic languages like Mtac and Ltac2 model side-effects by having tactics operate in a tactic monad, with the monadic constructors corresponding to effects like non-termination, unification and exceptions. They require a hand-written and tuned interpreter for these languages, which either leads to higher complexity and less flexibility in language design or lower performance.
+
+Because Mtac tactics are written as Gallina terms we can ask Coq to generate native code corresponding to each tactic. This will allow us to use OCaml to perform all the actual calculations in our tactic instead of Coq's evaluation or our own custom runtime. However, OCaml knows nothing about our monadic operations, it just sees them as constructors for an AST and happily normalizes our AST. We can teach OCaml how to handle our side-effects by writing an 'effect interpreter' which operates on the OCaml representation of our tactic code. With this, we can start evaluating tactical expressions! But it turns out we still have a rather large problem...
+
+Tactic languages typically include a form of unification, which at least in coq is _not_ preserved by beta reduction. This means that `x -> x' -> unify x y -/-> unify x' y`. As an example we can look at `unify (?a ++ ?b) ([1] ++ [2])`, here `?a` and `?b` are metavariables so we the expression `?a ++ ?b` is already normal but `[1] ++ [2] --> [1; 2]` which won't unify anymore. This is a problem because OCaml uses call-by-value and will eagerly reduce any arguments to constructors or functions, which means that it won't attempt to preserve the `[1] ++ [2]`.
+
+We still have a trick up our sleeve though, Coq's compilation needs to handle free variables, which it achieves by 'freezing' them in an accumulator, a structure which just stores every argument applied to it. It's almost like a thunk that we can't force (easily). If we can indentify the areas that need to avoid beta-reduction then we could turn those into accumulators during the compilation and bam! no more beta-reduction!
+
+In this project we take as a hypothesis that _non-tactical_ arguments and terms are _symbolic_, they're terms that we want to avoid evaluating. On the other hand, all terms of a _tactical_ type are considered to be computational, after all we're evaluating tactics here! So we compile pure arguments/terms to accumulators and tactical ones to normal CBV functions.
+
+
 # Project
 
 This project defines a typed tactic language called Mtaclite, which contains the essential features of Mtac/Mtac2. Just like Mtac, this language is defined in Coq which means that tactics written in Mtaclite are themselves Gallina terms, albeit equipped with monadic effects. In Mtac, these terms are interpreted by an OCaml tree walking interpreter which provides interpretation for all effects during interpretation.

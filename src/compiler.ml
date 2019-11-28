@@ -106,6 +106,13 @@ let type_univ_of_constr env sigma v : types =
   let _, tta, _ = decompose_prod env sigma ctyp in
   tta
 
+(*
+  Interpreter for monadic effects of MtacLite
+
+  This interpreter takes a native representation of a term of type Mtac A, and performs the effect denoted by the head-constructor.
+  Some effects may require a read-back of some or all the arguments in the term (unification) or may even require _compiling_ the returned value (nu)
+*)
+
 let rec interpret istate env sigma (v : Nativevalues.t) =
   Feedback.msg_info (Pp.str (str_of_mtaclite (Obj.magic v : mtaclite))) ;
   intrepret' istate env sigma v
@@ -199,7 +206,7 @@ and intrepret' istate env sigma v = begin match (Obj.magic v : mtaclite) with
 
   end
 
-
+(* Compiling, evaluating, reading back and returning *)
 let compile env sigma _ constr =
   let t0 = Sys.time () in
 
@@ -244,23 +251,4 @@ let compile env sigma _ constr =
 
 
   Val ({ fresh_counter = ref 0; metas = 0}, env', sigma', lazy (EConstr.of_constr redback))
-(*
-let compile env sigma goal term =
-  let tagged_term = tag_calls env sigma term in
-  Feedback.msg_info (Printer.pr_econstr_env env sigma tagged_term) ;
-
-  let unsafe_tagged = EConstr.Unsafe.to_constr tagged_term in
-  let unsafe_term = EConstr.Unsafe.to_constr term in
-  let sigma_evars = evars_of_evar_map sigma in
-
-  let native_lambda = Nativelambda.lambda_of_constr env sigma_evars unsafe_tagged in
-  Feedback.msg_info (Lambda_printer.pp_lambda env sigma native_lambda) ;
-
-  let native_term = Nativelambda.lambda_of_constr env sigma_evars unsafe_term in
-  Feedback.msg_info (Lambda_printer.pp_lambda env sigma native_term) ;
-
-  let accud = Tag_to_accu.tag_to_accu env sigma native_lambda in
-  Feedback.msg_info (Lambda_printer.pp_lambda env sigma accud) ;
-  Val (def_state, env, sigma, lazy term) *)
-
 

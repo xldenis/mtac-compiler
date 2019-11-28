@@ -1,6 +1,14 @@
 open Nativelambda
 open Pp
 
+(*
+  During compilation we go through Coq's nativelambda representation at one point. To debug problems during that phase
+  it's very useful to have a pretty printer that actually lets us know something about the form of the lambda terms
+  we're generating (ie whether any callType calls remain after compilation!).
+
+  Only a portion of the cases are implemented and can be extended as needed
+*)
+
 let rec pp_lambda env sigma l : Pp.t  =
   begin match l with
   | Lrel _ -> str "Lrel"

@@ -6,6 +6,20 @@ let monadic_type sigma (ty : constr) =
   let mtac  = (Lazy.force MtacTerm.mtacMtac) in
   eq_constr sigma mtac mnd
 
+(*
+  This is where the magic happens!
+
+  The idea of this pass is to traverse the tree of our tactical term and look at every function application
+  and wrap every pure function call with `callType` a function defined in `MtacLite` which we use to mark
+  points in the tree that should be lazy. Later in the compilation we lose access to the type information
+  so it's much easier to modify the tree to mark the relevant spots ahead of time.
+
+  ====
+
+  Γ ⊢ f a1...an : T --> ⟦ f a1...an ⟧ --> callType(f) ⟦a1⟧...⟦an⟧ if T ≆ Mtac A and f is a constant (constructor, function)
+  Γ ⊢ f a1...an : T --> ⟦ f a1...an ⟧ --> f ⟦a1⟧...⟦an⟧           if T ≅ Mtac A and f is a constant (constructor, function)
+  Γ ⊢ f a1...an : T --> ⟦ f a1...an ⟧ --> ⟦ f ⟧ ⟦a1⟧...⟦an⟧        otherwise
+*)
 let rec tag_calls env sigma (c : constr) : constr =
   begin match kind sigma c with
   | (App (f, args)) ->
