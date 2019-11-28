@@ -227,11 +227,10 @@ let compile env sigma _ constr =
   Nativelib.call_linker ~fatal: true prefix fn (None);
 
   (* interpret the compiled term, producing either an error or a value *)
-  let Val (istate, env', sigma', res) = interpret ({ fresh_counter = ref 0; metas = 0}) env sigma !Nativelib.rt1 in
+  let res = interpret ({ fresh_counter = ref 0; metas = 0}) env sigma !Nativelib.rt1 in
 
   let t2 = Sys.time () in
   Feedback.msg_info (str (Format.sprintf "Evaluation done in %.5f@." (t2 -. t1))) ;
-
   (* Readback of values is 'type-directed', it deconstructs the value's type as it builds up it's coq representation.
      We already know our return type is Mtac A, so we break it apart to get the A inside
    *)
@@ -240,15 +239,24 @@ let compile env sigma _ constr =
   (* Sometimes our return type may not be normalized and this can pose problems for the readback *)
   let red = whd_all env sigma arg in
 
-  Feedback.msg_info (Printer.pr_econstr_env env sigma ( arg)) ;
-  Feedback.msg_info (str "HELLO") ;
+  match res with
+  | Val (istate, env', sigma', res) -> begin
+    (* do the actual readback *)
+    let (redback : Constr.t) = Nativenorm.nf_val env' sigma' res (EConstr.Unsafe.to_constr arg) in
 
-  (* do the actual readback *)
-  let (redback : Constr.t) = Nativenorm.nf_val env' sigma' res (EConstr.Unsafe.to_constr arg) in
+    let t3 = Sys.time () in
+    Feedback.msg_info (str (Format.sprintf "Readback done in %.5f@." (t3 -. t2))) ;
 
-  let t3 = Sys.time () in
-  Feedback.msg_info (str (Format.sprintf "Readback done in %.5f@." (t3 -. t2))) ;
+    Val ({ fresh_counter = ref 0; metas = 0}, env', sigma', lazy (EConstr.of_constr redback))
+    end
+  | Err (istate, env', sigma', res) -> begin
+    Feedback.msg_info (str "Interpretation returned an error result") ;
+    (* do the actual readback *)
+    let strty = EConstr.Unsafe.to_constr (Lazy.force CoqString.stringTy) in
+    let (redback : Constr.t) = Nativenorm.nf_val env' sigma' res strty in
 
+    let t3 = Sys.time () in
+    Feedback.msg_info (str (Format.sprintf "Readback done in %.5f@." (t3 -. t2))) ;
 
-  Val ({ fresh_counter = ref 0; metas = 0}, env', sigma', lazy (EConstr.of_constr redback))
-
+    Err ({ fresh_counter = ref 0; metas = 0}, env', sigma', lazy (EConstr.of_constr redback))
+    end
