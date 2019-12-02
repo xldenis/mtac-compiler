@@ -117,6 +117,12 @@ let rec interpret istate env sigma (v : Nativevalues.t) =
   Feedback.msg_info (Pp.str (str_of_mtaclite (Obj.magic v : mtaclite))) ;
   intrepret' istate env sigma v
 and intrepret' istate env sigma v = begin match (Obj.magic v : mtaclite) with
+  | Accu acc ->
+    let strty = EConstr.Unsafe.to_constr (Lazy.force CoqString.stringTy) in
+    let r = Nativelite.nf_val env sigma v strty in
+
+    Feedback.msg_info (str "BLOCKED ON ACCU: " ++ Printer.pr_constr_env env sigma r);
+    Err (istate, env, sigma, Obj.magic ())
   | Print s ->
     let strty = EConstr.Unsafe.to_constr (Lazy.force CoqString.stringTy) in
     let normed = nf_val env sigma s strty in (* i can hardcode the string type here *)
@@ -202,8 +208,6 @@ and intrepret' istate env sigma v = begin match (Obj.magic v : mtaclite) with
       let fn = Nativelib.compile ml_filename (code) ~profile:false in
       Nativelib.call_linker ~fatal:true prefix fn (Some (upd));
       Val (istate, env, sigma, !Nativelib.rt1)
-
-
   end
 
 (* Compiling, evaluating, reading back and returning *)

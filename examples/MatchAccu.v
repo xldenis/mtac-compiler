@@ -15,6 +15,6 @@ Definition var_match (y : nat) :=
   end.
 
 Goal True.
-  run (evar_match 0) as r.
-  compile (evar_match 0) as v.
-  compile (evar_match (0 + 0)) as v.
+  run (var_match 0) as r.
+  compile (var_match 0) as v.
+  compile (var_match (0 + 0)) as v.
