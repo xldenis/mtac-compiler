@@ -72,9 +72,6 @@ open Pp
 
 let print env sigma cons = Feedback.msg_info (str (Printf.sprintf "MTACLITE: %s\n" (CoqString.from_coq env sigma cons))) ;()
 
-let nf_val = Obj.magic ()
-let construct_of_constr_block = Obj.magic ()
-
 open Context
 open Names
 open EConstr
@@ -100,11 +97,11 @@ let str_of_mtaclite v = match v with
   | Accu _ -> "accu"
 
 (* Get the correct 'Type' used in Mtac *)
-let type_univ_of_constr env sigma v : types =
+let type_univ_of_constr env sigma v : Constr.types =
   let mtac  = EConstr.Unsafe.to_constr(Lazy.force MtacTerm.mtacMtac) in
-  let _, ctyp = construct_of_constr_block env sigma (block_tag (Obj.magic v)) mtac in
-  let _, tta, _ = decompose_prod env sigma ctyp in
-  tta
+  let _, ctyp = Nativelite.construct_of_constr_block env sigma (block_tag (Obj.magic v)) mtac in
+  let _, tta, _ = decompose_prod env sigma (EConstr.of_constr ctyp) in
+  EConstr.Unsafe.to_constr tta
 
 (*
   Interpreter for monadic effects of MtacLite
@@ -134,7 +131,7 @@ and intrepret' istate env sigma v = begin match (Obj.magic v : mtaclite) with
     interpret istate env sigma a >>= fun (istate, e, s, ma) ->
       interpret istate e s ((Obj.magic b) ma)
   | Unify (ta, a, b) -> (* how do we get the type here? do.a readback of ta with type Type ?? but whicch Type?? *)
-    let tta = type_univ_of_constr env sigma v in
+    let tta  : Constr.types = type_univ_of_constr env sigma v in
     let nta = nf_val env sigma ta tta in
     let na = nf_val env sigma a nta in
     let nb = nf_val env sigma b nta in
@@ -169,11 +166,11 @@ and intrepret' istate env sigma v = begin match (Obj.magic v : mtaclite) with
     end
   | Nu (a, b, func) ->
     let tta = type_univ_of_constr env sigma v in(* this is all to extract Type... because of universe problems *)
-    let ta = nf_val env sigma  a tta in
+    let ta = nf_val env sigma a tta in
 
     let id  = fresh_name "nu" istate in
     let var = mk_var_accu id in
-    let env = EConstr.push_named (Context.Named.Declaration.LocalAssum (Context.annotR id, ta)) env in
+    let env = EConstr.push_named (Context.Named.Declaration.LocalAssum (Context.annotR id, EConstr.of_constr ta)) env in
 
     interpret istate env sigma ((Obj.magic func) var)
   | Fix (a, b, s, i, f, x) ->
@@ -192,10 +189,10 @@ and intrepret' istate env sigma v = begin match (Obj.magic v : mtaclite) with
       let tta = type_univ_of_constr env sigma v in(* this is all to extract Type... because of universe problems *)
       let na = nf_val env sigma a tta in
       (* need to make a A -> Type fun !!! *)
-      let np = nf_val env sigma p (mkArrow na Sorts.Relevant tta) in
+      let np = nf_val env sigma p (Term.mkArrow na Sorts.Relevant tta) in
       let nx = nf_val env sigma x na in
 
-      let reduced_type = Reductionops.whd_all env sigma (mkApp (np, [| nx |])) in
+      let reduced_type = Reductionops.whd_all env sigma (mkApp (EConstr.of_constr np, [| EConstr.of_constr nx |])) in
 
       let tpx = nf_val env sigma px (EConstr.Unsafe.to_constr reduced_type) in
 

@@ -43,7 +43,7 @@ Qed.
 
 Lemma omg : True.
   compile (unify 1 2) as v.
-  Qed.
+Qed.
 
 
 Lemma lazyCompiler : True.
