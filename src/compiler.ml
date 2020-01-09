@@ -119,7 +119,7 @@ let rec interpret istate env sigma (v : Nativevalues.t) =
 and intrepret' istate env sigma v = begin match (Obj.magic v : mtaclite) with
   | Accu acc ->
     let strty = EConstr.Unsafe.to_constr (Lazy.force CoqString.stringTy) in
-    let r = Nativelite.nf_val env sigma v strty in
+    let r = nf_val env sigma v strty in
 
     Feedback.msg_info (str "BLOCKED ON ACCU: " ++ Printer.pr_constr_env env sigma r);
     Err (istate, env, sigma, Obj.magic ())

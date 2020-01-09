@@ -30,9 +30,6 @@ lib: [
   "_build/install/default/lib/mtaclite/plugin/mtaclite__Monad.cmi" {"plugin/mtaclite__Monad.cmi"}
   "_build/install/default/lib/mtaclite/plugin/mtaclite__Monad.cmt" {"plugin/mtaclite__Monad.cmt"}
   "_build/install/default/lib/mtaclite/plugin/mtaclite__Monad.cmx" {"plugin/mtaclite__Monad.cmx"}
-  "_build/install/default/lib/mtaclite/plugin/mtaclite__Nativelite.cmi" {"plugin/mtaclite__Nativelite.cmi"}
-  "_build/install/default/lib/mtaclite/plugin/mtaclite__Nativelite.cmt" {"plugin/mtaclite__Nativelite.cmt"}
-  "_build/install/default/lib/mtaclite/plugin/mtaclite__Nativelite.cmx" {"plugin/mtaclite__Nativelite.cmx"}
   "_build/install/default/lib/mtaclite/plugin/mtaclite__Run.cmi" {"plugin/mtaclite__Run.cmi"}
   "_build/install/default/lib/mtaclite/plugin/mtaclite__Run.cmt" {"plugin/mtaclite__Run.cmt"}
   "_build/install/default/lib/mtaclite/plugin/mtaclite__Run.cmti" {"plugin/mtaclite__Run.cmti"}
@@ -46,7 +43,6 @@ lib: [
   "_build/install/default/lib/mtaclite/plugin/mtaclite__Unify.cmi" {"plugin/mtaclite__Unify.cmi"}
   "_build/install/default/lib/mtaclite/plugin/mtaclite__Unify.cmt" {"plugin/mtaclite__Unify.cmt"}
   "_build/install/default/lib/mtaclite/plugin/mtaclite__Unify.cmx" {"plugin/mtaclite__Unify.cmx"}
-  "_build/install/default/lib/mtaclite/plugin/nativelite.ml" {"plugin/nativelite.ml"}
   "_build/install/default/lib/mtaclite/plugin/run.ml" {"plugin/run.ml"}
   "_build/install/default/lib/mtaclite/plugin/run.mli" {"plugin/run.mli"}
   "_build/install/default/lib/mtaclite/plugin/tag_calls.ml" {"plugin/tag_calls.ml"}
