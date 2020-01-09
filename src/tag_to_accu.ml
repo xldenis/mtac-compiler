@@ -34,8 +34,10 @@ let rec tag_to_accu env sigma (l : lambda) =
   | Lapp (Lconst (p, (c, i)), args) ->
     if Names.eq_constant_key c mtacLazyConst then
       let real_func = Array.get args 1 in
+      Feedback.msg_info (Pp.str "making lazy tag") ;
+
       let func' = begin match real_func with
-                  | Lconst (p, c) -> Lconst_accu (p, c)
+                  (* | Lconst (p, c) -> Lconst_accu (p, c) *)
                   | a -> a
                   end in
 

@@ -109,11 +109,16 @@ let type_univ_of_constr env sigma v : Constr.types =
   This interpreter takes a native representation of a term of type Mtac A, and performs the effect denoted by the head-constructor.
   Some effects may require a read-back of some or all the arguments in the term (unification) or may even require _compiling_ the returned value (nu)
 *)
+let nkey = CProfile.declare_profile "nf_val" ;;
+let nf_val a b c d = CProfile.profile4 nkey nf_val a b c d  ;;
 
-let rec interpret istate env sigma (v : Nativevalues.t) =
+let unifkey = CProfile.declare_profile "unify" ;;
+let unify a b c d e = CProfile.profile5 unifkey Unify.unify a b c d e ;;
+
+(* let rec interpret istate env sigma (v : Nativevalues.t) =
   Feedback.msg_info (Pp.str (str_of_mtaclite (Obj.magic v : mtaclite))) ;
-  intrepret' istate env sigma v
-and intrepret' istate env sigma v = begin match (Obj.magic v : mtaclite) with
+  intrepret' istate env sigma v *)
+let rec interpret istate env sigma v = begin match (Obj.magic v : mtaclite) with
   | Accu acc ->
     let strty = EConstr.Unsafe.to_constr (Lazy.force CoqString.stringTy) in
     let r = nf_val env sigma v strty in
@@ -139,7 +144,7 @@ and intrepret' istate env sigma v = begin match (Obj.magic v : mtaclite) with
       (* Feedback.msg_info (Printer.pr_constr ( na)) ; *)
       (* Feedback.msg_info (Printer.pr_constr ( nb)) ; *)
 
-    let unified = Unify.unify sigma env [] (EConstr.of_constr na) (EConstr.of_constr nb) in
+    let unified = unify sigma env [] (EConstr.of_constr na) (EConstr.of_constr nb) in
 
     begin match unified with
     | (true, sigma') ->   Val (istate, env, sigma', Obj.magic (CoqSome (Obj.magic EqRefl)))
@@ -205,7 +210,11 @@ and intrepret' istate env sigma v = begin match (Obj.magic v : mtaclite) with
       let fn = Nativelib.compile ml_filename (code) ~profile:false in
       Nativelib.call_linker ~fatal:true prefix fn (Some (upd));
       Val (istate, env, sigma, !Nativelib.rt1)
-  end
+  end ;;
+
+let intkey = CProfile.declare_profile "interpret" ;;
+let interpret a b c d = CProfile.profile4 intkey interpret a b c d  ;;
+CProfile.init_profile () ;;
 
 (* Compiling, evaluating, reading back and returning *)
 let compile env sigma _ constr =
@@ -226,11 +235,10 @@ let compile env sigma _ constr =
   Feedback.msg_info (str (Format.sprintf "Compilation done in %.5f@." (t1 -. t0))) ;
 
   Nativelib.call_linker ~fatal: true prefix fn (None);
-
-  (* interpret the compiled term, producing either an error or a value *)
   let res = interpret ({ fresh_counter = ref 0; metas = 0}) env sigma !Nativelib.rt1 in
-
   let t2 = Sys.time () in
+
+  CProfile.print_profile () ;
   Feedback.msg_info (str (Format.sprintf "Evaluation done in %.5f@." (t2 -. t1))) ;
   (* Readback of values is 'type-directed', it deconstructs the value's type as it builds up it's coq representation.
      We already know our return type is Mtac A, so we break it apart to get the A inside
@@ -260,4 +268,6 @@ let compile env sigma _ constr =
     Feedback.msg_info (str (Format.sprintf "Readback done in %.5f@." (t3 -. t2))) ;
 
     Err ({ fresh_counter = ref 0; metas = 0}, env', sigma', lazy (EConstr.of_constr redback))
-    end
+    end ;;
+
+  CProfile.print_profile () ;
